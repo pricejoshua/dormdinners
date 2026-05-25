@@ -1,7 +1,8 @@
 import { supabaseServerClient } from '@/lib/supabase/server';
 import { currentMondayISO } from '@/app/_lib/weekOf';
 import WeeklyPlan, { type MealWithIngredients } from '@/app/WeeklyPlan';
-import type { MealRow, MealIngredientRow } from '@/types/database';
+import Suggestions from '@/app/Suggestions';
+import type { MealRow, MealIngredientRow, OptimizationSuggestionRow } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
@@ -91,6 +92,21 @@ export default async function ThisWeekPage() {
 
   const weekOf = currentMondayISO();
 
+  // Load existing optimization suggestions for this week (all statuses).
+  // Supabase JS client does not expose an array-overlap operator for uuid[],
+  // so we fetch all suggestions and filter by week's meal IDs client-side.
+  // The table stays small (one week at a time).
+  const weekMealSet = new Set(mealIds);
+  const { data: suggestionsData } = await supabaseServerClient
+    .from('optimization_suggestions')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  const existingSuggestions: OptimizationSuggestionRow[] = (suggestionsData ?? []).filter((s) => {
+    if (!Array.isArray(s.meal_ids)) return false;
+    return (s.meal_ids as string[]).some((id) => weekMealSet.has(id));
+  });
+
   return (
     <div>
       <div className="flex items-baseline justify-between mb-4">
@@ -98,6 +114,7 @@ export default async function ThisWeekPage() {
         <span className="text-xs text-gray-400">Week of {weekOf}</span>
       </div>
       <WeeklyPlan meals={mealsWithIngredients} />
+      <Suggestions initial={existingSuggestions} meals={mealsWithIngredients} />
     </div>
   );
 }
