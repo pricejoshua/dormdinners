@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/refresh-flipp", "schedule": "0 4 * * 1" }
+  ]
+}
