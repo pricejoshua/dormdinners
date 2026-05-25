@@ -1,72 +1,49 @@
 # Dorm Dinners
 
-Shared meal-planning web app for university cooking groups. Plan 5 meals, track pantry inventory, and generate an optimized shopping list with weekly flyer deals.
+Shared meal-planning web app for university cooking groups. Plan 5 meals per week, track pantry inventory, and generate an optimized shopping list with weekly flyer deals — all without accounts.
 
 ## Stack
 
 - **Next.js 14** (App Router) + TypeScript
-- **Supabase** (PostgreSQL)
+- **Supabase** (PostgreSQL + edge functions)
 - **Tailwind CSS**
-- **Anthropic Claude Haiku** (recipe extraction + optimization)
-- **Vercel** (hosting + cron)
+- **Vercel AI SDK** with pluggable provider — Anthropic / Groq / OpenRouter, swap with one env var
+- **Vercel** (hosting + weekly cron)
+- **Flipp** (unofficial flyer API)
 
-## Install
+## Setup
+
+Full step-by-step in [SETUP.md](./SETUP.md). Short version:
 
 ```bash
 npm install
-```
-
-## Environment setup
-
-Copy `.env.example` to `.env.local` and fill in your values:
-
-```bash
-cp .env.example .env.local
-```
-
-| Variable | Description |
-|---|---|
-| `NEXT_PUBLIC_POSTAL_CODE` | Postal code for Flipp price lookups (default `V3A4S8`) |
-| `SUPABASE_URL` | Your Supabase project URL |
-| `SUPABASE_ANON_KEY` | Supabase anon/public key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server only) |
-| `ANTHROPIC_API_KEY` | Anthropic API key for Claude Haiku |
-| `CRON_SECRET` | Secret token for authenticating Vercel cron requests |
-
-## Dev server
-
-```bash
+cp .env.example .env.local   # then fill in Supabase + LLM API keys
 npm run dev
 ```
 
-Opens at [http://localhost:3000](http://localhost:3000).
+You also need to run the SQL migration in `supabase/migrations/` against your Supabase project — see SETUP.md step 3.
 
-## Build
+## Useful commands
 
 ```bash
-npm run build
-npm start
+npm run dev          # dev server at http://localhost:3000
+npm run build        # production build
+npm start            # production server
+npm test             # vitest suite
+npx tsc --noEmit     # type check
 ```
 
-## Deploy
+## Architecture
 
-Push to a Vercel-linked GitHub repo. Set all env vars in the Vercel dashboard under **Settings → Environment Variables**.
+- `app/` — Next.js App Router pages and API routes
+- `lib/llm/` — provider-agnostic LLM helpers (see `lib/llm/provider.ts` for the backend selector)
+- `lib/supabase/` — server + browser Supabase clients
+- `lib/flipp.ts` and `lib/shopping-list/` — Flipp price cache helper, shopping-list generator
+- `supabase/migrations/` — database schema
+- `supabase/functions/refresh-flipp/` — weekly Flipp-scraping edge function
+- `config/curated-ingredients.ts` — the ~30 ingredients the cron job tracks
+- `types/database.ts` — typed Row/Insert/Update for every table
 
-The weekly Flipp price cron job runs every Sunday at 8pm PT via Vercel Cron. Add the following to `vercel.json` after the cron route is implemented:
+## Design doc
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/fetch-flipp",
-      "schedule": "0 3 * * 1"
-    }
-  ]
-}
-```
-
-(UTC Monday 03:00 = Sunday 20:00 PT.)
-
-## Database
-
-Run the SQL migrations in `supabase/migrations/` against your Supabase project to create all tables. See `tasks/02-database-schema.md` for details.
+`cooking-group-app-design.md` is the source of truth for the data model, LLM prompts, and product decisions.
