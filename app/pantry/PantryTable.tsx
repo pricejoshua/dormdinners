@@ -13,6 +13,8 @@ interface RowState {
   item: PantryItemRow;
   error: string | null;
   saving: boolean;
+  /** true when the row has local edits not yet persisted to the DB */
+  dirty: boolean;
 }
 
 interface PantryTableProps {
@@ -36,8 +38,6 @@ function formatDate(iso: string): string {
     return iso;
   }
 }
-
-const DEBOUNCE_MS = 600;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -64,7 +64,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
 
   // ---- row state ----------------------------------------------------------
   const [rows, setRows] = useState<RowState[]>(() =>
-    initialItems.map((item) => ({ item, error: null, saving: false }))
+    initialItems.map((item) => ({ item, error: null, saving: false, dirty: false }))
   );
   // Mirror of rows kept in a ref so callbacks can read current state without
   // listing `rows` as a dependency (avoids stale closures).
@@ -75,12 +75,6 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
 
   // Keep a global error for network-level failures (e.g. add row)
   const [globalError, setGlobalError] = useState<string | null>(null);
-
-  // ---- debounce refs -------------------------------------------------------
-  // Map from row id (or tempId) → timeout handle
-  const debounceMap = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map()
-  );
 
   // ---- helpers -------------------------------------------------------------
   const rowKey = (r: RowState) => r.tempId ?? r.item.id;
@@ -96,17 +90,39 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
     []
   );
 
-  // ---- save (PATCH) --------------------------------------------------------
+  // ---- local edit (no network until the user clicks Save) ------------------
+  const handleChange = useCallback(
+    (key: string, field: "name" | "notes", value: string) => {
+      setRows((prev) =>
+        prev.map((r) => {
+          if (rowKey(r) !== key) return r;
+          return { ...r, item: { ...r.item, [field]: value }, dirty: true };
+        })
+      );
+    },
+    []
+  );
+
+  // ---- save a single row (PATCH for existing, POST for new) ----------------
   const saveRow = useCallback(
-    async (key: string, item: PantryItemRow) => {
+    async (key: string) => {
+      const row = rowsRef.current.find((r) => rowKey(r) === key);
+      if (!row || row.saving) return;
+      if (!row.item.name.trim()) return; // can't persist a nameless item
+
       patchRow(key, { saving: true, error: null });
+
+      const isNew = !!row.tempId;
+      const url = isNew ? "/api/pantry" : `/api/pantry/${row.item.id}`;
+      const method = isNew ? "POST" : "PATCH";
+
       try {
-        const res = await fetch(`/api/pantry/${item.id}`, {
-          method: "PATCH",
+        const res = await fetch(url, {
+          method,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: item.name,
-            notes: item.notes,
+            name: row.item.name,
+            notes: row.item.notes,
             updated_by: editorName || null,
           }),
         });
@@ -114,12 +130,20 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
           const json = (await res.json()) as { error?: string };
           patchRow(key, {
             saving: false,
-            error: json.error ?? "Save failed",
+            error: json.error ?? (isNew ? "Create failed" : "Save failed"),
           });
-        } else {
-          const saved = (await res.json()) as PantryItemRow;
-          patchRow(key, { saving: false, item: saved });
+          return;
         }
+        const saved = (await res.json()) as PantryItemRow;
+        // For a new row this also swaps the temp row for the real DB row by
+        // dropping tempId; for an existing row it refreshes timestamps.
+        setRows((prev) =>
+          prev.map((r) =>
+            rowKey(r) === key
+              ? { item: saved, error: null, saving: false, dirty: false }
+              : r
+          )
+        );
       } catch {
         patchRow(key, { saving: false, error: "Network error" });
       }
@@ -127,59 +151,8 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
     [editorName, patchRow]
   );
 
-  // debounced save on change
-  const scheduleDebounce = useCallback(
-    (key: string, item: PantryItemRow) => {
-      const existing = debounceMap.current.get(key);
-      if (existing) clearTimeout(existing);
-      const handle = setTimeout(() => {
-        debounceMap.current.delete(key);
-        void saveRow(key, item);
-      }, DEBOUNCE_MS);
-      debounceMap.current.set(key, handle);
-    },
-    [saveRow]
-  );
-
-  const handleChange = useCallback(
-    (key: string, field: "name" | "notes", value: string) => {
-      // Update the field in local state
-      setRows((prev) =>
-        prev.map((r) => {
-          if (rowKey(r) !== key) return r;
-          return { ...r, item: { ...r.item, [field]: value } };
-        })
-      );
-      // Schedule debounced PATCH only for rows already in the DB (no tempId).
-      // rowsRef gives us the current rows without a stale closure.
-      const row = rowsRef.current.find((r) => rowKey(r) === key);
-      if (row && !row.tempId) {
-        scheduleDebounce(key, { ...row.item, [field]: value });
-      }
-    },
-    [scheduleDebounce]
-  );
-
-  // ---- blur save (for rows that already exist in DB) ----------------------
-  const handleBlur = useCallback(
-    (key: string) => {
-      // Read current row from ref — no stale closure issue
-      const row = rowsRef.current.find((r) => rowKey(r) === key);
-      if (!row || row.tempId) return; // new rows saved via handleNewRowBlur
-      // Cancel any pending debounce and save immediately on blur
-      const existing = debounceMap.current.get(key);
-      if (existing) {
-        clearTimeout(existing);
-        debounceMap.current.delete(key);
-      }
-      void saveRow(key, row.item);
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [saveRow]
-  );
-
-  // ---- add row -------------------------------------------------------------
-  const handleAddRow = useCallback(async () => {
+  // ---- add a new (unsaved) row --------------------------------------------
+  const handleAddRow = useCallback(() => {
     setGlobalError(null);
     const tempId = `temp-${Date.now()}`;
     const optimistic: RowState = {
@@ -195,67 +168,17 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
       },
       error: null,
       saving: false,
+      dirty: false,
     };
     setRows((prev) => [...prev, optimistic]);
   }, [editorName]);
 
-  // save a new (temp) row when its name field loses focus
-  const handleNewRowBlur = useCallback(
-    async (tempId: string, item: PantryItemRow) => {
-      if (!item.name.trim()) {
-        // remove empty unsaved rows
-        setRows((prev) => prev.filter((r) => r.tempId !== tempId));
-        return;
-      }
-      setRows((prev) =>
-        prev.map((r) =>
-          r.tempId === tempId ? { ...r, saving: true, error: null } : r
-        )
-      );
-      try {
-        const res = await fetch("/api/pantry", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: item.name,
-            notes: item.notes,
-            updated_by: editorName || null,
-          }),
-        });
-        if (!res.ok) {
-          const json = (await res.json()) as { error?: string };
-          setRows((prev) =>
-            prev.map((r) =>
-              r.tempId === tempId
-                ? { ...r, saving: false, error: json.error ?? "Create failed" }
-                : r
-            )
-          );
-        } else {
-          const saved = (await res.json()) as PantryItemRow;
-          // replace temp row with real row
-          setRows((prev) =>
-            prev.map((r) =>
-              r.tempId === tempId
-                ? { item: saved, error: null, saving: false }
-                : r
-            )
-          );
-        }
-      } catch {
-        setRows((prev) =>
-          prev.map((r) =>
-            r.tempId === tempId
-              ? { ...r, saving: false, error: "Network error" }
-              : r
-          )
-        );
-      }
-    },
-    [editorName]
-  );
+  // ---- discard an unsaved (temp) row locally -------------------------------
+  const handleCancelNew = useCallback((tempId: string) => {
+    setRows((prev) => prev.filter((r) => r.tempId !== tempId));
+  }, []);
 
-  // ---- delete row ----------------------------------------------------------
+  // ---- delete a persisted row ----------------------------------------------
   const handleDelete = useCallback(
     async (key: string, id: string) => {
       // Optimistic: remove immediately. Use rowsRef for current state.
@@ -347,7 +270,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
               <th className="py-1.5 pr-3 font-medium w-36 whitespace-nowrap">
                 Updated at
               </th>
-              <th className="py-1.5 w-8" aria-label="Delete" />
+              <th className="py-1.5 w-28" aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
@@ -364,11 +287,15 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
             {rows.map((row) => {
               const key = rowKey(row);
               const isTemp = !!row.tempId;
+              const unsaved = isTemp || row.dirty;
+              const canSave = !row.saving && row.item.name.trim().length > 0;
 
               return (
                 <Fragment key={key}>
                   <tr
-                    className="border-b border-gray-100 hover:bg-gray-50"
+                    className={`border-b border-gray-100 hover:bg-gray-50${
+                      unsaved ? " bg-amber-50/50" : ""
+                    }`}
                   >
                     <td className="py-1 pr-3">
                       <input
@@ -378,11 +305,9 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
                         onChange={(e) =>
                           handleChange(key, "name", e.target.value)
                         }
-                        onBlur={() =>
-                          isTemp
-                            ? void handleNewRowBlur(row.tempId!, row.item)
-                            : handleBlur(key)
-                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveRow(key);
+                        }}
                         className="w-full bg-transparent border-b border-transparent focus:border-gray-400 focus:outline-none py-0.5 px-0 text-sm"
                         placeholder="Item name"
                         disabled={row.saving}
@@ -396,11 +321,9 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
                         onChange={(e) =>
                           handleChange(key, "notes", e.target.value)
                         }
-                        onBlur={() =>
-                          isTemp
-                            ? void handleNewRowBlur(row.tempId!, row.item)
-                            : handleBlur(key)
-                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveRow(key);
+                        }}
                         className="w-full bg-transparent border-b border-transparent focus:border-gray-400 focus:outline-none py-0.5 px-0 text-sm font-mono"
                         placeholder="e.g. half a bag"
                         disabled={row.saving}
@@ -413,17 +336,43 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
                       {isTemp ? "—" : formatDate(row.item.updated_at)}
                     </td>
                     <td className="py-1">
-                      {!isTemp && (
-                        <button
-                          onClick={() => void handleDelete(key, row.item.id)}
-                          aria-label={`Delete ${row.item.name}`}
-                          disabled={row.saving}
-                          className="text-gray-300 hover:text-red-500 transition-colors text-base leading-none disabled:opacity-50"
-                          title="Remove item"
-                        >
-                          ×
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {unsaved && (
+                          <button
+                            onClick={() => void saveRow(key)}
+                            disabled={!canSave}
+                            className="text-xs px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                            title={
+                              canSave
+                                ? "Save this row"
+                                : "Enter a name before saving"
+                            }
+                          >
+                            {row.saving ? "Saving…" : "Save"}
+                          </button>
+                        )}
+                        {isTemp ? (
+                          <button
+                            onClick={() => handleCancelNew(row.tempId!)}
+                            aria-label="Discard new item"
+                            disabled={row.saving}
+                            className="text-gray-300 hover:text-gray-600 transition-colors text-base leading-none disabled:opacity-50"
+                            title="Discard"
+                          >
+                            ×
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => void handleDelete(key, row.item.id)}
+                            aria-label={`Delete ${row.item.name}`}
+                            disabled={row.saving}
+                            className="text-gray-300 hover:text-red-500 transition-colors text-base leading-none disabled:opacity-50"
+                            title="Remove item"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                   {row.error && (
@@ -445,7 +394,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
 
       <div className="mt-3">
         <button
-          onClick={() => void handleAddRow()}
+          onClick={handleAddRow}
           className="text-sm text-blue-600 hover:underline border border-dashed border-blue-300 rounded px-3 py-1 hover:bg-blue-50 transition-colors"
         >
           + Add item
