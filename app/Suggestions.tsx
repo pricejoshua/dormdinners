@@ -2,8 +2,6 @@
 
 import { useState } from 'react';
 import type { OptimizationSuggestionRow } from '@/types/database';
-import type { MealWithIngredients } from '@/app/WeeklyPlan';
-
 // ── Type pill ────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<string, string> = {
@@ -95,27 +93,28 @@ function SuggestionRow({ suggestion }: SuggestionRowProps) {
 interface SuggestionsProps {
   /** Server-loaded suggestions for this week (all statuses). */
   initial: OptimizationSuggestionRow[];
-  /** All 5 meals for the current week — used to decide if the button is enabled. */
-  meals: MealWithIngredients[];
+  /** Whether all 5 slots are complete (live state from WeekView). */
+  complete: boolean;
+  /** Monday (YYYY-MM-DD) of the week being viewed. */
+  weekOf: string;
 }
 
-function mealsComplete(meals: MealWithIngredients[]): boolean {
-  if (meals.length < 5) return false;
-  return meals.every((m) => m.title.trim().length > 0 && m.ingredients.length > 0);
-}
-
-export default function Suggestions({ initial, meals }: SuggestionsProps) {
+export default function Suggestions({ initial, complete, weekOf }: SuggestionsProps) {
   const [suggestions, setSuggestions] = useState<OptimizationSuggestionRow[]>(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const enabled = !loading && mealsComplete(meals);
+  const enabled = !loading && complete;
 
   async function runOptimize() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/optimize', { method: 'POST' });
+      const res = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekOf }),
+      });
       const json = (await res.json()) as {
         suggestions?: OptimizationSuggestionRow[];
         error?: string;
@@ -140,7 +139,7 @@ export default function Suggestions({ initial, meals }: SuggestionsProps) {
         disabled={!enabled}
         onClick={() => void runOptimize()}
         title={
-          !mealsComplete(meals)
+          !complete
             ? 'All 5 meals need a title and at least one ingredient before optimizing.'
             : undefined
         }
