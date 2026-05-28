@@ -121,21 +121,18 @@ value in `WeekView` state. Slots created later pass that value into
 
 ### 9. Clean up existing data
 
-A one-time cleanup removes rows that are junk under the new model: meals with a
-blank/whitespace title **and** zero ingredients. Real meals are untouched.
+Out of scope for implementation — the user will delete the existing junk rows
+manually. For reference, the rows that are junk under the new model are meals
+with a blank/whitespace title **and** zero ingredients:
 
 ```sql
--- Delete blank meals that have no ingredients (preview with SELECT first)
-DELETE FROM meals m
+-- Reference only (user runs manually): blank meals with no ingredients
+SELECT m.* FROM meals m
 WHERE btrim(coalesce(m.title, '')) = ''
   AND NOT EXISTS (
     SELECT 1 FROM meal_ingredients mi WHERE mi.meal_id = m.id
   );
 ```
-
-Delivered as a migration (`supabase/migrations/0002_cleanup_blank_meals.sql`).
-The destructive statement will be previewed via `SELECT` and shown to the user
-before running.
 
 ## Components touched
 
@@ -148,7 +145,6 @@ before running.
 | `app/api/meals/route.ts` | **New.** `POST` creates one meal for a week. |
 | `app/api/optimize/route.ts` | Accept `{ weekOf }` in body. |
 | `app/_lib/weekOf.ts` | Add helpers: validate a Monday, step ±1 week. |
-| `supabase/migrations/0002_cleanup_blank_meals.sql` | **New.** Delete blank, ingredient-less meals. |
 
 ## Known limitations
 
