@@ -22,7 +22,6 @@ vars declared, and a base layout that the feature pages can plug into.
    NEXT_PUBLIC_POSTAL_CODE=V3A4S8
    SUPABASE_URL=
    SUPABASE_ANON_KEY=
-   SUPABASE_SERVICE_ROLE_KEY=
 
    # LLM provider — pick one of: anthropic (default) | groq | openrouter
    LLM_PROVIDER=anthropic
@@ -36,7 +35,7 @@ vars declared, and a base layout that the feature pages can plug into.
    `CRON_SECRET` is added so Task 06 can authenticate Vercel cron calls.
    Only the API key for the active `LLM_PROVIDER` needs to be filled in.
 4. `lib/supabase/client.ts` (browser, anon key) and `lib/supabase/server.ts`
-   (server, service role key). Export typed clients.
+   (server, anon key — RLS is permissive). Export typed clients.
 5. `app/layout.tsx` with a top nav linking to three routes: `/` (This Week),
    `/pantry`, `/shopping-list`. Mobile-first; nav collapses sensibly on narrow
    widths.

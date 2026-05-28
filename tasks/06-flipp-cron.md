@@ -37,7 +37,7 @@ Edge Function (because the work exceeds Vercel's 10s free-tier limit).
 5. `lib/flipp.ts` (shared) — typed shape of a Flipp item, plus a `getCached(name: string): Promise<FlippItem[]>` helper that ranks by freshness.
 6. `supabase/functions/refresh-flipp/README.md` — how to deploy
    (`supabase functions deploy refresh-flipp`) and how to set the function's
-   env vars (`SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_POSTAL_CODE`).
+   env vars (`SUPABASE_ANON_KEY`, `NEXT_PUBLIC_POSTAL_CODE`).
 
 ## Acceptance criteria
 
