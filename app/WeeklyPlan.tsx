@@ -195,9 +195,10 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
   }
 
   // ── Open the URL modal, creating the meal first if needed ───────────────────
-  async function openUrlModal() {
-    const id = await ensureMealId();
-    if (id) setShowUrlModal(true);
+  // Open the modal without creating a row; the meal is created on submit
+  // (inside the modal) so cancelling never leaves a blank meal behind.
+  function openUrlModal() {
+    setShowUrlModal(true);
   }
 
   // ── URL extraction result ─────────────────────────────────────────────────
@@ -349,7 +350,7 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
               <span className="text-gray-300 text-xs">·</span>
               <button
                 type="button"
-                onClick={() => { void openUrlModal(); }}
+                onClick={openUrlModal}
                 className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2"
               >
                 Paste recipe URL
@@ -359,9 +360,9 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
         </div>
       )}
 
-      {showUrlModal && mealId && (
+      {showUrlModal && (
         <UrlModalWithMode
-          mealId={mealId}
+          ensureMealId={ensureMealId}
           existingCount={ingredients.length}
           onClose={() => setShowUrlModal(false)}
           onSuccess={handleUrlSuccessWithMode}
@@ -375,13 +376,14 @@ export { MealSlot };
 
 // Wrapper that threads mode through to the success handler
 interface UrlModalWithModeProps {
-  mealId: string;
+  /** Creates the meal row on demand (or returns the existing id). */
+  ensureMealId: () => Promise<string | null>;
   existingCount: number;
   onClose: () => void;
   onSuccess: (ingredients: MealIngredientRow[], replace: boolean) => void;
 }
 
-function UrlModalWithMode({ mealId, existingCount, onClose, onSuccess }: UrlModalWithModeProps) {
+function UrlModalWithMode({ ensureMealId, existingCount, onClose, onSuccess }: UrlModalWithModeProps) {
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState<'replace' | 'append'>(existingCount > 0 ? 'append' : 'replace');
   const [loading, setLoading] = useState(false);
@@ -392,6 +394,12 @@ function UrlModalWithMode({ mealId, existingCount, onClose, onSuccess }: UrlModa
     setError(null);
     setLoading(true);
     try {
+      // Create the meal only now that the user has committed to extracting.
+      const mealId = await ensureMealId();
+      if (!mealId) {
+        setError('Could not create the meal. Please try again.');
+        return;
+      }
       const res = await fetch(`/api/meals/${mealId}/extract-from-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
