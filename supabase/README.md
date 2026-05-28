@@ -20,11 +20,10 @@ After `supabase start`, the local Studio UI is at `http://localhost:54323`.
 ## Hosted project (production)
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Copy the project URL, anon key, and service-role key into `.env.local`:
+2. Copy the project URL and anon key into `.env.local`:
    ```
    SUPABASE_URL=https://<project-ref>.supabase.co
    SUPABASE_ANON_KEY=<anon-key>
-   SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
    ```
 3. Push the migration:
    ```bash

@@ -24,7 +24,7 @@ npm install
 
 Sign in at supabase.com → **New project**. Pick a region close to you. Once it's provisioned:
 
-- **Settings → API** — copy `Project URL`, `anon` `public` key, and `service_role` key.
+- **Settings → API** — copy `Project URL` and the `anon` `public` key.
 
 ### 3. Apply the database schema
 
@@ -66,7 +66,6 @@ Fill in:
 | `NEXT_PUBLIC_POSTAL_CODE` | Already defaults to `V3A4S8`. Change if needed. |
 | `SUPABASE_URL` | From step 2 |
 | `SUPABASE_ANON_KEY` | From step 2 |
-| `SUPABASE_SERVICE_ROLE_KEY` | From step 2 |
 | `LLM_PROVIDER` | `anthropic` (default), `groq`, or `openrouter` |
 | `LLM_MODEL` | Leave empty for the per-provider default, or pin a specific model |
 | `ANTHROPIC_API_KEY` | Required if `LLM_PROVIDER=anthropic` |
@@ -112,7 +111,7 @@ Then set the edge function's secrets in the Supabase dashboard: **Edge Functions
 
 | Secret | Value |
 |---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | Same value as the env var |
+| `SUPABASE_ANON_KEY` | Same value as the env var |
 | `NEXT_PUBLIC_POSTAL_CODE` | Same value as the env var |
 
 See `supabase/functions/refresh-flipp/README.md` for more.

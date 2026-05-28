@@ -41,8 +41,7 @@ export async function GET(request: Request) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // The edge function authenticates via the service role key.
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      Authorization: `Bearer ${process.env.SUPABASE_ANON_KEY ?? ""}`,
     },
     body: JSON.stringify({ ingredients: CURATED_INGREDIENTS }),
   }).catch((err: unknown) => {

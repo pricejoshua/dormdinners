@@ -254,7 +254,6 @@ chicken thighs, chicken breast, ground beef, salmon, eggs, pasta, rice, lentils,
 NEXT_PUBLIC_POSTAL_CODE=V3A4S8
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
 
 # LLM provider — pick one of: anthropic (default) | groq | openrouter
 LLM_PROVIDER=anthropic

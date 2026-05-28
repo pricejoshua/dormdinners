@@ -1,14 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "placeholder-service-role-key";
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "placeholder-anon-key";
 
 /**
- * Server-side Supabase client using the service role key.
- * Only import in Server Components, API routes, or server actions.
- * Never expose this client to the browser.
+ * Server-side Supabase client.
+ * Uses the anon key — safe because RLS policies are permissive (no auth in this app).
  */
-export const supabaseServerClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
+export const supabaseServerClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,

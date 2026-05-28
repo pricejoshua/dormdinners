@@ -23,11 +23,11 @@ call the Flipp API with the correct postal code.
 ```bash
 supabase secrets set \
   SUPABASE_URL=https://<project-ref>.supabase.co \
-  SUPABASE_SERVICE_ROLE_KEY=<service-role-key> \
+  SUPABASE_ANON_KEY=<anon-key> \
   NEXT_PUBLIC_POSTAL_CODE=V3A4S8
 ```
 
-`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are automatically injected by
+`SUPABASE_URL` and `SUPABASE_ANON_KEY` are automatically injected by
 Supabase in most environments, but setting them explicitly is safer for
 Edge Functions that run outside the standard Supabase runtime.
 
@@ -36,7 +36,7 @@ Edge Functions that run outside the standard Supabase runtime.
 ```bash
 curl -X POST \
   "https://<project-ref>.supabase.co/functions/v1/refresh-flipp" \
-  -H "Authorization: Bearer <service-role-key>" \
+  -H "Authorization: Bearer <anon-key>" \
   -H "Content-Type: application/json" \
   -d '{"ingredients":["chicken thighs","eggs","rice"]}'
 ```

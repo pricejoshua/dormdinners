@@ -10,7 +10,7 @@
  *
  * Required env vars (set via Supabase dashboard or `supabase secrets set`):
  *   SUPABASE_URL
- *   SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_ANON_KEY
  *   NEXT_PUBLIC_POSTAL_CODE   — e.g. V3A4S8
  */
 
@@ -196,10 +196,10 @@ serve(async (req: Request) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   const postalCode = Deno.env.get("NEXT_PUBLIC_POSTAL_CODE") ?? "";
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !anonKey) {
     return new Response(
       JSON.stringify({ error: "Missing Supabase configuration" }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -230,7 +230,7 @@ serve(async (req: Request) => {
     );
   }
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  const supabase = createClient(supabaseUrl, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
