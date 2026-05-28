@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseServerClient } from '@/lib/supabase/server';
 import { isMondayISO } from '@/app/_lib/weekOf';
-import type { MealInsert, MealRow } from '@/types/database';
+import type { MealInsert } from '@/types/database';
 
 export async function POST(request: Request): Promise<NextResponse> {
   let body: unknown;
@@ -50,5 +50,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data as MealRow, { status: 201 });
+  return NextResponse.json(data, { status: 201 });
 }
