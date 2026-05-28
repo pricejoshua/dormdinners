@@ -163,11 +163,9 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
 
   // ── DELETE ingredient ─────────────────────────────────────────────────────
   async function removeIngredient(ingId: string) {
-    setIngredients((prev) => {
-      const next = prev.filter((i) => i.id !== ingId);
-      report({ ingredientCount: next.length });
-      return next;
-    });
+    const next = ingredients.filter((i) => i.id !== ingId);
+    setIngredients(next);
+    report({ ingredientCount: next.length });
     await fetch(`/api/meal-ingredients/${ingId}`, { method: 'DELETE' });
   }
 
@@ -187,11 +185,9 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
     });
     if (res.ok) {
       const ing = (await res.json()) as MealIngredientRow;
-      setIngredients((prev) => {
-        const next = [...prev, ing];
-        report({ ingredientCount: next.length });
-        return next;
-      });
+      const next = [...ingredients, ing];
+      setIngredients(next);
+      report({ ingredientCount: next.length });
       setNewName('');
       setNewQty('');
       newNameRef.current?.focus();
@@ -206,17 +202,15 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
 
   // ── URL extraction result ─────────────────────────────────────────────────
   function handleUrlSuccessWithMode(newIngredients: MealIngredientRow[], replaceMode: boolean) {
-    setIngredients((prev) => {
-      let next: MealIngredientRow[];
-      if (replaceMode) {
-        next = newIngredients;
-      } else {
-        const existingIds = new Set(prev.map((i) => i.id));
-        next = [...prev, ...newIngredients.filter((i) => !existingIds.has(i.id))];
-      }
-      report({ ingredientCount: next.length });
-      return next;
-    });
+    let next: MealIngredientRow[];
+    if (replaceMode) {
+      next = newIngredients;
+    } else {
+      const existingIds = new Set(ingredients.map((i) => i.id));
+      next = [...ingredients, ...newIngredients.filter((i) => !existingIds.has(i.id))];
+    }
+    setIngredients(next);
+    report({ ingredientCount: next.length });
   }
 
   return (
