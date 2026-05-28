@@ -7,8 +7,19 @@ export interface MealWithIngredients extends MealRow {
   ingredients: MealIngredientRow[];
 }
 
-interface WeeklyPlanProps {
-  meals: MealWithIngredients[];
+/** A slot is either a saved meal (`id` set) or a browser-only draft (`id` null). */
+export interface Slot {
+  key: string;            // stable React key, independent of DB id
+  id: string | null;      // DB id; null until the row is created
+  title: string;
+  ingredients: MealIngredientRow[];
+}
+
+/** Live summary a slot reports up to WeekView for the completeness gate. */
+export interface SlotSummary {
+  id: string | null;
+  title: string;
+  ingredientCount: number;
 }
 
 // ─── Inline editable text ────────────────────────────────────────────────────
@@ -61,35 +72,79 @@ function InlineEdit({ value, onSave, placeholder, className = '', inputClassName
 // ─── Single meal slot ────────────────────────────────────────────────────────
 
 interface MealSlotProps {
-  meal: MealWithIngredients;
+  slot: Slot;
   index: number;
+  weekOf: string;
+  headcount: number;
+  onSummaryChange: (key: string, patch: Partial<SlotSummary>) => void;
 }
 
-function MealSlot({ meal, index }: MealSlotProps) {
-  const [title, setTitle] = useState(meal.title);
-  const [ingredients, setIngredients] = useState<MealIngredientRow[]>(meal.ingredients);
+function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotProps) {
+  const [mealId, setMealId] = useState<string | null>(slot.id);
+  const [title, setTitle] = useState(slot.title);
+  const [ingredients, setIngredients] = useState<MealIngredientRow[]>(slot.ingredients);
   const [expanded, setExpanded] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [addingIngredient, setAddingIngredient] = useState(false);
   const [newName, setNewName] = useState('');
   const [newQty, setNewQty] = useState('');
   const newNameRef = useRef<HTMLInputElement>(null);
+  // Guards against double-creating the meal when two actions race.
+  const createPromise = useRef<Promise<string | null> | null>(null);
 
-  // ── PATCH meal title ──────────────────────────────────────────────────────
+  const report = useCallback(
+    (patch: Partial<SlotSummary>) => onSummaryChange(slot.key, patch),
+    [onSummaryChange, slot.key],
+  );
+
+  // ── Lazy creation ───────────────────────────────────────────────────────────
+  // Returns the meal id, creating the row on first need. Null on failure.
+  async function ensureMealId(titleForCreate?: string): Promise<string | null> {
+    if (mealId) return mealId;
+    if (!createPromise.current) {
+      createPromise.current = (async () => {
+        const res = await fetch('/api/meals', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: titleForCreate ?? title,
+            week_of: weekOf,
+            headcount,
+          }),
+        });
+        if (!res.ok) {
+          createPromise.current = null; // allow a retry
+          return null;
+        }
+        const meal = (await res.json()) as MealRow;
+        setMealId(meal.id);
+        report({ id: meal.id });
+        return meal.id;
+      })();
+    }
+    return createPromise.current;
+  }
+
+  // ── PATCH / create on title commit ────────────────────────────────────────
   async function saveTitle(next: string) {
     setTitle(next);
-    await fetch(`/api/meals/${meal.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: next }),
-    });
+    report({ title: next });
+    if (mealId) {
+      await fetch(`/api/meals/${mealId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: next }),
+      });
+    } else if (next.trim() !== '') {
+      // First real content → create the row (title goes in the create call).
+      await ensureMealId(next);
+    }
+    // Empty title on a draft writes nothing — slot stays a draft.
   }
 
   // ── PATCH ingredient ──────────────────────────────────────────────────────
   async function saveIngredientName(ingId: string, name: string) {
-    setIngredients((prev) =>
-      prev.map((i) => (i.id === ingId ? { ...i, name } : i)),
-    );
+    setIngredients((prev) => prev.map((i) => (i.id === ingId ? { ...i, name } : i)));
     await fetch(`/api/meal-ingredients/${ingId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -98,9 +153,7 @@ function MealSlot({ meal, index }: MealSlotProps) {
   }
 
   async function saveIngredientQty(ingId: string, quantity: string) {
-    setIngredients((prev) =>
-      prev.map((i) => (i.id === ingId ? { ...i, quantity } : i)),
-    );
+    setIngredients((prev) => prev.map((i) => (i.id === ingId ? { ...i, quantity } : i)));
     await fetch(`/api/meal-ingredients/${ingId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -110,41 +163,60 @@ function MealSlot({ meal, index }: MealSlotProps) {
 
   // ── DELETE ingredient ─────────────────────────────────────────────────────
   async function removeIngredient(ingId: string) {
-    setIngredients((prev) => prev.filter((i) => i.id !== ingId));
+    setIngredients((prev) => {
+      const next = prev.filter((i) => i.id !== ingId);
+      report({ ingredientCount: next.length });
+      return next;
+    });
     await fetch(`/api/meal-ingredients/${ingId}`, { method: 'DELETE' });
   }
 
-  // ── POST new ingredient ───────────────────────────────────────────────────
+  // ── POST new ingredient (creates the meal first if needed) ──────────────────
   async function addIngredient() {
     const name = newName.trim();
     if (!name) return;
     const qty = newQty.trim();
 
-    const res = await fetch(`/api/meals/${meal.id}/ingredients`, {
+    const id = await ensureMealId();
+    if (!id) return;
+
+    const res = await fetch(`/api/meals/${id}/ingredients`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name, quantity: qty || null }),
     });
     if (res.ok) {
-      const ing = await res.json() as MealIngredientRow;
-      setIngredients((prev) => [...prev, ing]);
+      const ing = (await res.json()) as MealIngredientRow;
+      setIngredients((prev) => {
+        const next = [...prev, ing];
+        report({ ingredientCount: next.length });
+        return next;
+      });
       setNewName('');
       setNewQty('');
       newNameRef.current?.focus();
     }
   }
 
+  // ── Open the URL modal, creating the meal first if needed ───────────────────
+  async function openUrlModal() {
+    const id = await ensureMealId();
+    if (id) setShowUrlModal(true);
+  }
+
   // ── URL extraction result ─────────────────────────────────────────────────
   function handleUrlSuccessWithMode(newIngredients: MealIngredientRow[], replaceMode: boolean) {
-    if (replaceMode) {
-      setIngredients(newIngredients);
-    } else {
-      setIngredients((prev) => {
+    setIngredients((prev) => {
+      let next: MealIngredientRow[];
+      if (replaceMode) {
+        next = newIngredients;
+      } else {
         const existingIds = new Set(prev.map((i) => i.id));
-        const truly_new = newIngredients.filter((i) => !existingIds.has(i.id));
-        return [...prev, ...truly_new];
-      });
-    }
+        next = [...prev, ...newIngredients.filter((i) => !existingIds.has(i.id))];
+      }
+      report({ ingredientCount: next.length });
+      return next;
+    });
   }
 
   return (
@@ -283,7 +355,7 @@ function MealSlot({ meal, index }: MealSlotProps) {
               <span className="text-gray-300 text-xs">·</span>
               <button
                 type="button"
-                onClick={() => setShowUrlModal(true)}
+                onClick={() => { void openUrlModal(); }}
                 className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2"
               >
                 Paste recipe URL
@@ -293,9 +365,9 @@ function MealSlot({ meal, index }: MealSlotProps) {
         </div>
       )}
 
-      {showUrlModal && (
+      {showUrlModal && mealId && (
         <UrlModalWithMode
-          mealId={meal.id}
+          mealId={mealId}
           existingCount={ingredients.length}
           onClose={() => setShowUrlModal(false)}
           onSuccess={handleUrlSuccessWithMode}
@@ -304,6 +376,8 @@ function MealSlot({ meal, index }: MealSlotProps) {
     </li>
   );
 }
+
+export { MealSlot };
 
 // Wrapper that threads mode through to the success handler
 interface UrlModalWithModeProps {
@@ -405,65 +479,6 @@ function UrlModalWithMode({ mealId, existingCount, onClose, onSuccess }: UrlModa
           </div>
         </form>
       </div>
-    </div>
-  );
-}
-
-// ─── Main component ──────────────────────────────────────────────────────────
-
-export default function WeeklyPlan({ meals: initialMeals }: WeeklyPlanProps) {
-  const [headcount, setHeadcount] = useState<number>(initialMeals[0]?.headcount ?? 1);
-  const [headcountInput, setHeadcountInput] = useState<string>(String(initialMeals[0]?.headcount ?? 1));
-  const [saving, setSaving] = useState(false);
-
-  async function saveHeadcount() {
-    const parsed = parseInt(headcountInput, 10);
-    if (isNaN(parsed) || parsed < 1) {
-      setHeadcountInput(String(headcount));
-      return;
-    }
-    if (parsed === headcount) return;
-    setHeadcount(parsed);
-    setSaving(true);
-    // Update all 5 meals in parallel
-    await Promise.all(
-      initialMeals.map((m) =>
-        fetch(`/api/meals/${m.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ headcount: parsed }),
-        }),
-      ),
-    );
-    setSaving(false);
-  }
-
-  return (
-    <div>
-      {/* Headcount */}
-      <div className="flex items-center gap-2 mb-4">
-        <label htmlFor="headcount" className="text-sm text-gray-700 font-medium">
-          Headcount
-        </label>
-        <input
-          id="headcount"
-          type="number"
-          min={1}
-          value={headcountInput}
-          onChange={(e) => setHeadcountInput(e.target.value)}
-          onBlur={() => { void saveHeadcount(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { void saveHeadcount(); } }}
-          className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-500"
-        />
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-      </div>
-
-      {/* Meal list */}
-      <ul className="border border-gray-200 rounded divide-y divide-gray-200">
-        {initialMeals.map((meal, i) => (
-          <MealSlot key={meal.id} meal={meal} index={i} />
-        ))}
-      </ul>
     </div>
   );
 }
