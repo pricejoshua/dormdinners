@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
 import { supabaseServerClient } from '@/lib/supabase/server';
 import { optimize } from '@/lib/llm/optimize';
-import { currentMondayISO } from '@/app/_lib/weekOf';
+import { currentMondayISO, isMondayISO } from '@/app/_lib/weekOf';
 import { LLMParseError, LLMRequestError } from '@/lib/llm/types';
 import type { OptimizationSuggestionRow } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(): Promise<NextResponse> {
-  const weekOf = currentMondayISO();
+export async function POST(request: Request): Promise<NextResponse> {
+  // Default to the current week; accept an optional { weekOf } override.
+  let weekOf = currentMondayISO();
+  try {
+    const body = (await request.json()) as { weekOf?: unknown };
+    if (typeof body?.weekOf === 'string' && isMondayISO(body.weekOf)) {
+      weekOf = body.weekOf;
+    }
+  } catch {
+    // No/invalid body → keep the current-week default.
+  }
 
   // ── 1. Load this week's meals ─────────────────────────────────────────────
   const { data: meals, error: mealsError } = await supabaseServerClient
