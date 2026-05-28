@@ -36,6 +36,7 @@ export function isMondayISO(value: string): boolean {
 
 /**
  * Returns the ISO date `weeks` weeks away from `weekOf` (negative = earlier).
+ * `weekOf` must be a Monday YYYY-MM-DD string (see {@link isMondayISO}).
  */
 export function addWeeksISO(weekOf: string, weeks: number): string {
   const d = new Date(`${weekOf}T00:00:00`);

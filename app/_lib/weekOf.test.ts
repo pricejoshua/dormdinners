@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isMondayISO, addWeeksISO } from './weekOf';
+import { isMondayISO, addWeeksISO, toISODate } from './weekOf';
+
+describe('toISODate', () => {
+  it('formats a local-midnight date as YYYY-MM-DD', () => {
+    expect(toISODate(new Date('2026-05-25T00:00:00'))).toBe('2026-05-25');
+  });
+});
 
 describe('isMondayISO', () => {
   it('accepts a real Monday', () => {
@@ -28,5 +34,13 @@ describe('addWeeksISO', () => {
   });
   it('crosses a year boundary', () => {
     expect(addWeeksISO('2026-12-28', 1)).toBe('2027-01-04');
+  });
+  it('keeps the correct local date across US spring-forward', () => {
+    // 2026-03-09 (Mon) → +1 week crosses US DST start (Mar 8 2026)
+    expect(addWeeksISO('2026-03-09', 1)).toBe('2026-03-16');
+  });
+  it('keeps the correct local date across EU fall-back', () => {
+    // 2026-10-26 (Mon) → +1 week crosses EU DST end (Oct 25 2026)
+    expect(addWeeksISO('2026-10-26', 1)).toBe('2026-11-02');
   });
 });
