@@ -2,7 +2,7 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
-import { getModel } from '@/lib/llm/client';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { supabaseServerClient } from '@/lib/supabase/server';
 import type { PantryItemRow, PantryItemInsert, ReferencePriceRow, ReferencePriceInsert } from '@/types/database';
 
@@ -38,8 +38,11 @@ export async function POST(request: NextRequest) {
 
   let llmText: string;
   try {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required for receipt parsing');
+    const anthropic = createAnthropic({ apiKey });
     const result = await generateText({
-      model: getModel(),
+      model: anthropic('claude-haiku-4-5-20251001'),
       maxTokens: 2048,
       messages: [
         {
