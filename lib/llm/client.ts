@@ -1,3 +1,3 @@
 import 'server-only';
 
-export { getModel } from './provider';
+export { getModel, getVisionModel } from './provider';

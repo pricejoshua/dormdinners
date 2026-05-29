@@ -2,7 +2,7 @@ import 'server-only';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
-import { createAnthropic } from '@ai-sdk/anthropic';
+import { getVisionModel } from '@/lib/llm/client';
 import { supabaseServerClient } from '@/lib/supabase/server';
 import type { PantryItemRow, PantryItemInsert, ReferencePriceRow, ReferencePriceInsert } from '@/types/database';
 
@@ -38,11 +38,8 @@ export async function POST(request: NextRequest) {
 
   let llmText: string;
   try {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required for receipt parsing');
-    const anthropic = createAnthropic({ apiKey });
     const result = await generateText({
-      model: anthropic('claude-haiku-4-5-20251001'),
+      model: getVisionModel(),
       maxTokens: 2048,
       messages: [
         {
@@ -61,6 +58,7 @@ Extract all purchased items and return ONLY a JSON object (no preamble, no markd
 }
 quantity_amount and quantity_unit may be null if not shown.
 price may be null if not clearly a per-item price.
+try to guess item names based on context clues.
 Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
             },
           ],

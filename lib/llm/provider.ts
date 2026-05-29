@@ -55,3 +55,14 @@ export function getModel(): LanguageModel {
     `Unknown LLM_PROVIDER: "${provider}". Must be one of: anthropic, groq, openrouter`,
   );
 }
+
+// Vision-capable model — always Anthropic since Groq/OpenRouter configs may not support images.
+// Override the model with LLM_VISION_MODEL env var if needed.
+export function getVisionModel(): LanguageModel {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY is required for vision (receipt parsing)');
+  }
+  const modelId = process.env.LLM_VISION_MODEL ?? 'claude-haiku-4-5-20251001';
+  return createAnthropic({ apiKey })(modelId);
+}
