@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseServerClient } from '@/lib/supabase/server';
 import { extractRecipe } from '@/lib/llm/extractRecipe';
+import { clipRecipe } from '@/lib/recipe/clipRecipe';
 import type { MealIngredientInsert } from '@/types/database';
 
 interface RouteContext {
@@ -107,21 +108,28 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     );
   }
 
-  // Strip script/style before sending to LLM
-  const cleanedHtml = stripScriptAndStyle(html);
+  // Primary: RecipeClipper (fast, no LLM). It reads JSON-LD and visible markup,
+  // so it gets the raw HTML — JSDOM never executes the embedded scripts. Falls
+  // back to the LLM only when it can't find a recipe on the page.
+  let ingredients: Awaited<ReturnType<typeof extractRecipe>> = await clipRecipe(
+    html,
+    raw.url.trim(),
+  );
 
-  // Run LLM extraction
-  let ingredients: Awaited<ReturnType<typeof extractRecipe>>;
-  try {
-    ingredients = await extractRecipe(cleanedHtml);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      {
-        error: `Recipe extraction failed: ${message}. Please add ingredients manually.`,
-      },
-      { status: 422 },
-    );
+  if (ingredients.length === 0) {
+    // Strip script/style before sending to the LLM to cut token noise.
+    const cleanedHtml = stripScriptAndStyle(html);
+    try {
+      ingredients = await extractRecipe(cleanedHtml);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return NextResponse.json(
+        {
+          error: `Recipe extraction failed: ${message}. Please add ingredients manually.`,
+        },
+        { status: 422 },
+      );
+    }
   }
 
   if (ingredients.length === 0) {
