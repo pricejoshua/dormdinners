@@ -56,13 +56,33 @@ export function getModel(): LanguageModel {
   );
 }
 
-// Vision-capable model — always Anthropic since Groq/OpenRouter configs may not support images.
-// Override the model with LLM_VISION_MODEL env var if needed.
+const DEFAULT_VISION_MODELS: Record<Provider, string> = {
+  anthropic: 'claude-haiku-4-5-20251001',
+  groq: 'llama-3.2-90b-vision-preview',
+  openrouter: 'anthropic/claude-haiku-4.5',
+};
+
 export function getVisionModel(): LanguageModel {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is required for vision (receipt parsing)');
+  const provider = (process.env.LLM_VISION_PROVIDER ?? process.env.LLM_PROVIDER ?? 'anthropic') as Provider;
+  const modelId = process.env.LLM_VISION_MODEL ?? DEFAULT_VISION_MODELS[provider];
+
+  if (provider === 'anthropic') {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is required for vision');
+    return createAnthropic({ apiKey })(modelId);
   }
-  const modelId = process.env.LLM_VISION_MODEL ?? 'claude-haiku-4-5-20251001';
-  return createAnthropic({ apiKey })(modelId);
+
+  if (provider === 'groq') {
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) throw new Error('GROQ_API_KEY is required for vision');
+    return createGroq({ apiKey })(modelId);
+  }
+
+  if (provider === 'openrouter') {
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error('OPENROUTER_API_KEY is required for vision');
+    return createOpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1' })(modelId);
+  }
+
+  throw new Error(`Unknown LLM_VISION_PROVIDER: "${provider}". Must be one of: anthropic, groq, openrouter`);
 }
