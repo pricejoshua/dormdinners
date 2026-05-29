@@ -25,10 +25,19 @@ interface WeekViewProps {
 function buildSlots(meals: MealWithIngredients[]): Slot[] {
   const slots: (Slot | null)[] = Array(MEAL_COUNT).fill(null);
 
+  const toSlot = (m: MealWithIngredients): Slot => ({
+    key: m.id,
+    id: m.id,
+    title: m.title,
+    ingredients: m.ingredients,
+    serves: m.serves,
+    scale_override: m.scale_override,
+  });
+
   const unplaced: MealWithIngredients[] = [];
   for (const m of meals) {
     if (m.day_of_week != null && m.day_of_week >= 0 && m.day_of_week < MEAL_COUNT) {
-      slots[m.day_of_week] = { key: m.id, id: m.id, title: m.title, ingredients: m.ingredients };
+      slots[m.day_of_week] = toSlot(m);
     } else {
       unplaced.push(m);
     }
@@ -38,8 +47,8 @@ function buildSlots(meals: MealWithIngredients[]): Slot[] {
     if (slots[i] === null) {
       const m = unplaced.shift();
       slots[i] = m
-        ? { key: m.id, id: m.id, title: m.title, ingredients: m.ingredients }
-        : { key: crypto.randomUUID(), id: null, title: '', ingredients: [] };
+        ? toSlot(m)
+        : { key: crypto.randomUUID(), id: null, title: '', ingredients: [], serves: null, scale_override: null };
     }
   }
 

@@ -2,6 +2,8 @@
 
 import { useCallback, useRef, useState } from 'react';
 import type { MealIngredientRow, MealRow } from '@/types/database';
+import { effectiveFactor, scaleQuantity } from '@/lib/recipe/scale';
+import { sumWeight } from '@/lib/recipe/weight';
 
 export interface MealWithIngredients extends MealRow {
   ingredients: MealIngredientRow[];
@@ -13,6 +15,8 @@ export interface Slot {
   id: string | null;      // DB id; null until the row is created
   title: string;
   ingredients: MealIngredientRow[];
+  serves: number | null;          // recipe's canonical yield
+  scale_override: number | null;  // manual factor; null = auto (headcount/serves)
 }
 
 /** Live summary a slot reports up to WeekView for the completeness gate. */
@@ -83,6 +87,12 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
   const [mealId, setMealId] = useState<string | null>(slot.id);
   const [title, setTitle] = useState(slot.title);
   const [ingredients, setIngredients] = useState<MealIngredientRow[]>(slot.ingredients);
+  const [serves, setServes] = useState<number | null>(slot.serves);
+  const [scaleOverride, setScaleOverride] = useState<number | null>(slot.scale_override);
+  const [servesInput, setServesInput] = useState(slot.serves != null ? String(slot.serves) : '');
+  const [overrideInput, setOverrideInput] = useState(
+    slot.scale_override != null ? String(slot.scale_override) : '',
+  );
   const [expanded, setExpanded] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
   const [addingIngredient, setAddingIngredient] = useState(false);
@@ -141,6 +151,48 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
       await ensureMealId(next);
     }
     // Empty title on a draft writes nothing — slot stays a draft.
+  }
+
+  // ── PATCH serves / scale_override (create the meal first if needed) ────────
+  async function patchMeal(patch: Record<string, unknown>) {
+    const id = await ensureMealId();
+    if (!id) return;
+    await fetch(`/api/meals/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+  }
+
+  function saveServes(next: number | null) {
+    setServes(next);
+    void patchMeal({ serves: next });
+  }
+
+  function saveScaleOverride(next: number | null) {
+    setScaleOverride(next);
+    void patchMeal({ scale_override: next });
+  }
+
+  function commitServes() {
+    const t = servesInput.trim();
+    if (t === '') { if (serves !== null) saveServes(null); return; }
+    const n = parseInt(t, 10);
+    if (isNaN(n) || n < 1) { setServesInput(serves != null ? String(serves) : ''); return; }
+    if (n !== serves) saveServes(n);
+  }
+
+  function commitOverride() {
+    const t = overrideInput.trim();
+    if (t === '') { if (scaleOverride !== null) saveScaleOverride(null); return; }
+    const n = parseFloat(t);
+    if (isNaN(n) || n <= 0) { setOverrideInput(scaleOverride != null ? String(scaleOverride) : ''); return; }
+    if (n !== scaleOverride) saveScaleOverride(n);
+  }
+
+  function clearOverride() {
+    setOverrideInput('');
+    if (scaleOverride !== null) saveScaleOverride(null);
   }
 
   // ── PATCH ingredient ──────────────────────────────────────────────────────
@@ -215,6 +267,14 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
     report({ ingredientCount: next.length });
   }
 
+  // ── Derived scaling values (recomputed each render) ────────────────────────
+  const factor = effectiveFactor({ headcount, serves, scale_override: scaleOverride });
+  const isScaled = factor !== 1;
+  const fmtFactor = (f: number) => parseFloat(f.toFixed(2)).toString();
+  const weight = sumWeight(ingredients, factor);
+  const perPersonG =
+    weight && headcount > 0 ? Math.round((weight.kg * 1000) / headcount) : null;
+
   return (
     <li className="border-b border-gray-200 last:border-b-0">
       {/* Collapsed header */}
@@ -249,6 +309,52 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
             />
           </div>
 
+          {/* Serves + scale */}
+          <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+            <span className="w-10 shrink-0">Serves</span>
+            <input
+              type="number"
+              min={1}
+              value={servesInput}
+              onChange={(e) => setServesInput(e.target.value)}
+              onBlur={commitServes}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitServes(); }}
+              placeholder="?"
+              className="w-14 border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:border-gray-500"
+              title="Recipe's canonical yield"
+            />
+            <span className="text-gray-300">·</span>
+            <span>Scale ×</span>
+            <input
+              type="number"
+              min={0}
+              step={0.5}
+              value={overrideInput}
+              onChange={(e) => setOverrideInput(e.target.value)}
+              onBlur={commitOverride}
+              onKeyDown={(e) => { if (e.key === 'Enter') commitOverride(); }}
+              placeholder={serves ? fmtFactor(factor) : 'auto'}
+              className="w-14 border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:border-gray-500"
+              title="Manual scale factor; leave blank to auto-scale from headcount ÷ serves"
+            />
+            <span className="text-gray-400">
+              {scaleOverride != null
+                ? `manual ×${fmtFactor(scaleOverride)}`
+                : serves
+                  ? `auto ×${fmtFactor(factor)} (${headcount} ÷ ${serves})`
+                  : 'set serves to auto-scale'}
+            </span>
+            {scaleOverride != null && (
+              <button
+                type="button"
+                onClick={clearOverride}
+                className="underline underline-offset-2 hover:text-gray-900"
+              >
+                use auto
+              </button>
+            )}
+          </div>
+
           {/* Ingredient list */}
           {ingredients.length > 0 && (
             <table className="w-full text-sm border-collapse">
@@ -256,6 +362,9 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
                 <tr className="text-xs text-gray-400 text-left">
                   <th className="font-normal pb-1 w-1/2">Ingredient</th>
                   <th className="font-normal pb-1">Qty / unit</th>
+                  {isScaled && (
+                    <th className="font-normal pb-1">Scaled ×{fmtFactor(factor)}</th>
+                  )}
                   <th className="w-6" />
                 </tr>
               </thead>
@@ -280,6 +389,11 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
                         inputClassName="w-24"
                       />
                     </td>
+                    {isScaled && (
+                      <td className="py-0.5 pr-2 text-sm text-gray-900">
+                        {scaleQuantity(ing.quantity, factor) || '—'}
+                      </td>
+                    )}
                     <td className="py-0.5">
                       <button
                         type="button"
@@ -295,6 +409,16 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
                 ))}
               </tbody>
             </table>
+          )}
+
+          {/* Weight rollup (mass-unit ingredients only) */}
+          {weight && (
+            <p className="text-xs text-gray-500">
+              ≈ <span className="font-medium text-gray-700">{weight.kg} kg</span> ({weight.lb} lb) of weighed ingredients
+              {perPersonG != null && (
+                <span className="text-gray-400"> · ≈ {perPersonG} g/person (weighed items only)</span>
+              )}
+            </p>
           )}
 
           {/* Add ingredient row */}
