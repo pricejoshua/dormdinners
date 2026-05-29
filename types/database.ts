@@ -84,6 +84,20 @@ export interface ShoppingListItemRow {
   created_at: string;
 }
 
+export interface ReferencePriceRow {
+  id: string;
+  name: string;                  // staple, e.g. "chicken thighs"
+  store: string;
+  price: number;                 // pack price (numeric in Postgres)
+  size_amount: number | null;    // pack size quantity
+  size_unit: string | null;      // e.g. "kg", "g", "L", "ml", "ea", "pack"
+  notes: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;     // soft delete; NULL means active
+}
+
 // ---------------------------------------------------------------------------
 // Insert types — fields required / optional when inserting a new row.
 // `id` and timestamp defaults are omitted (Postgres provides them).
@@ -151,6 +165,20 @@ export interface ShoppingListItemInsert {
   created_at?: string;
 }
 
+export interface ReferencePriceInsert {
+  id?: string;
+  name: string;
+  store: string;
+  price: number;
+  size_amount?: number | null;
+  size_unit?: string | null;
+  notes?: string | null;
+  updated_by?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Update types — all fields optional for PATCH semantics
 // ---------------------------------------------------------------------------
@@ -161,6 +189,7 @@ export type MealIngredientUpdate = Partial<MealIngredientInsert>;
 export type FlippCacheUpdate = Partial<FlippCacheInsert>;
 export type OptimizationSuggestionUpdate = Partial<OptimizationSuggestionInsert>;
 export type ShoppingListItemUpdate = Partial<ShoppingListItemInsert>;
+export type ReferencePriceUpdate = Partial<ReferencePriceInsert>;
 
 // ---------------------------------------------------------------------------
 // Database interface — pass to createClient<Database>() for full type safety
@@ -198,6 +227,11 @@ export interface Database {
         Row: ShoppingListItemRow;
         Insert: ShoppingListItemInsert;
         Update: ShoppingListItemUpdate;
+      };
+      reference_prices: {
+        Row: ReferencePriceRow;
+        Insert: ReferencePriceInsert;
+        Update: ReferencePriceUpdate;
       };
     };
     Views: Record<string, never>;
