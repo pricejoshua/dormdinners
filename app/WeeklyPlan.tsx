@@ -84,6 +84,7 @@ interface MealSlotProps {
   referencePrices: PriceRow[];
   onSummaryChange: (key: string, patch: Partial<SlotSummary>) => void;
   pendingTitle?: string;
+  /** Called synchronously once pendingTitle has been picked up, before the async save completes. Used to prevent re-firing. */
   onPendingTitleConsumed?: () => void;
 }
 
@@ -112,6 +113,7 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
   );
 
   // Ref keeps the effect dep array stable while always calling the latest saveTitle.
+  // saveTitle is a function declaration (hoisted), so this ref assignment is safe at render time.
   const saveTitleRef = useRef(saveTitle);
   saveTitleRef.current = saveTitle;
   const consumedRef = useRef(onPendingTitleConsumed);
@@ -122,6 +124,7 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
       void saveTitleRef.current(pendingTitle);
       consumedRef.current?.();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingTitle]);
 
   // ── Lazy creation ───────────────────────────────────────────────────────────
