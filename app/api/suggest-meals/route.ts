@@ -36,6 +36,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   const mealRows = meals ?? [];
   const mealIds = mealRows.map((m) => m.id);
 
+  if (mealRows.length === 0) {
+    return NextResponse.json({ suggestions: [] });
+  }
+
   // ── 2. Load ingredients ────────────────────────────────────────────────────
   const { data: ingredients, error: ingError } =
     mealIds.length > 0
