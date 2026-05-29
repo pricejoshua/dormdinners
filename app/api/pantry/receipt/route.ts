@@ -100,6 +100,8 @@ Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
 
   const pantryInserts: PantryItemInsert[] = items.map((item) => ({
     name: item.name,
+    quantity_amount: item.quantity_amount,
+    quantity_unit: item.quantity_unit,
     updated_by: updatedBy,
   }));
 
