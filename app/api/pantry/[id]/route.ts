@@ -37,12 +37,27 @@ export async function PATCH(
     }
   }
 
-  if (Object.keys(patch).length === 0) {
+  const numericPatch: { quantity_amount?: number | null; quantity_unit?: string | null } = {};
+  const b = body as Record<string, unknown>;
+  if ("quantity_amount" in b) {
+    const val = b["quantity_amount"];
+    if (val === null || typeof val === "number") {
+      numericPatch.quantity_amount = val;
+    }
+  }
+  if ("quantity_unit" in b) {
+    const val = b["quantity_unit"];
+    if (val === null || typeof val === "string") {
+      numericPatch.quantity_unit = val;
+    }
+  }
+
+  if (Object.keys(patch).length === 0 && Object.keys(numericPatch).length === 0) {
     return NextResponse.json({ error: "Nothing to update" }, { status: 400 });
   }
 
   // Always bump updated_at
-  const updatePayload = { ...patch, updated_at: new Date().toISOString() };
+  const updatePayload = { ...patch, ...numericPatch, updated_at: new Date().toISOString() };
 
   const { data, error } = await supabaseServerClient
     .from("pantry_items")

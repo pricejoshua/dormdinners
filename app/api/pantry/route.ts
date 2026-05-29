@@ -43,16 +43,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
-  const { name, notes, updated_by } = body as {
+  const { name, notes, updated_by, quantity_amount, quantity_unit } = body as {
     name: string;
     notes?: string | null;
     updated_by?: string | null;
+    quantity_amount?: number | null;
+    quantity_unit?: string | null;
   };
 
   const insert: PantryItemInsert = {
     name,
     notes: notes ?? null,
     updated_by: updated_by ?? null,
+    quantity_amount: quantity_amount ?? null,
+    quantity_unit: quantity_unit ?? null,
   };
 
   const { data, error } = await supabaseServerClient
