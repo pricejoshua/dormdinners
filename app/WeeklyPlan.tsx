@@ -109,6 +109,7 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
           body: JSON.stringify({
             title: titleForCreate ?? title,
             week_of: weekOf,
+            day_of_week: index,
             headcount,
           }),
         });
@@ -243,7 +244,7 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
               value={title}
               onSave={saveTitle}
               placeholder="e.g. Pasta Primavera"
-              className="text-sm font-medium"
+              className="text-sm "
               inputClassName="w-48"
             />
           </div>

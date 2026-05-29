@@ -38,7 +38,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const insert: MealInsert = { title, week_of: raw.week_of, headcount };
+  let day_of_week: number | null = null;
+  if (raw.day_of_week !== null && raw.day_of_week !== undefined) {
+    if (typeof raw.day_of_week !== 'number' || !Number.isInteger(raw.day_of_week) || raw.day_of_week < 0 || raw.day_of_week > 6) {
+      return NextResponse.json(
+        { error: 'day_of_week must be an integer 0–6 or null' },
+        { status: 400 },
+      );
+    }
+    day_of_week = raw.day_of_week;
+  }
+
+  const insert: MealInsert = { title, week_of: raw.week_of, day_of_week, headcount };
 
   const { data, error } = await supabaseServerClient
     .from('meals')

@@ -29,6 +29,7 @@ export interface MealRow {
   id: string;
   title: string;
   week_of: string | null;   // ISO date string, e.g. "2025-01-06"
+  day_of_week: number | null; // 0 = Monday … 4 = Friday
   headcount: number | null;
   created_at: string;
 }
@@ -101,6 +102,7 @@ export interface MealInsert {
   id?: string;
   title: string;
   week_of?: string | null;
+  day_of_week?: number | null;
   headcount?: number | null;
   created_at?: string;
 }
