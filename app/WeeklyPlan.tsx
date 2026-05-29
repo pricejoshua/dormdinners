@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MealIngredientRow, MealRow } from '@/types/database';
 import { effectiveFactor, scaleQuantity } from '@/lib/recipe/scale';
 import { sumWeight } from '@/lib/recipe/weight';
@@ -83,9 +83,11 @@ interface MealSlotProps {
   headcount: number;
   referencePrices: PriceRow[];
   onSummaryChange: (key: string, patch: Partial<SlotSummary>) => void;
+  pendingTitle?: string;
+  onPendingTitleConsumed?: () => void;
 }
 
-function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryChange }: MealSlotProps) {
+function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryChange, pendingTitle, onPendingTitleConsumed }: MealSlotProps) {
   const [mealId, setMealId] = useState<string | null>(slot.id);
   const [title, setTitle] = useState(slot.title);
   const [ingredients, setIngredients] = useState<MealIngredientRow[]>(slot.ingredients);
@@ -108,6 +110,19 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
     (patch: Partial<SlotSummary>) => onSummaryChange(slot.key, patch),
     [onSummaryChange, slot.key],
   );
+
+  // Ref keeps the effect dep array stable while always calling the latest saveTitle.
+  const saveTitleRef = useRef(saveTitle);
+  saveTitleRef.current = saveTitle;
+  const consumedRef = useRef(onPendingTitleConsumed);
+  consumedRef.current = onPendingTitleConsumed;
+
+  useEffect(() => {
+    if (pendingTitle) {
+      void saveTitleRef.current(pendingTitle);
+      consumedRef.current?.();
+    }
+  }, [pendingTitle]);
 
   // ── Lazy creation ───────────────────────────────────────────────────────────
   // Returns the meal id, creating the row on first need. Null on failure.
