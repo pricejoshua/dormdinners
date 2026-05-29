@@ -44,6 +44,22 @@ describe('clipRecipe', () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
+  it('extracts ingredients from JSON-LD even with no visible ingredient markup', async () => {
+    const html = `<!doctype html><html><head><title>LD Only</title>
+<script type="application/ld+json">${JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Recipe',
+      name: 'LD Recipe',
+      recipeIngredient: ['2 cups flour', '3 eggs'],
+    })}</script></head>
+<body><h1>LD Recipe</h1><p>Prose, no ingredient list.</p></body></html>`;
+
+    const result = await clipRecipe(html, BASE_URL);
+
+    expect(result).toContainEqual({ name: 'flour', quantity: '2', unit: 'cups' });
+    expect(result).toContainEqual({ name: 'eggs', quantity: '3', unit: '' });
+  });
+
   it('skips blank ingredient lines', async () => {
     const html = recipePage(['2 cups flour', '', '   ', '1 cup milk']);
 
