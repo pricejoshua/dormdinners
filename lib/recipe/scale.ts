@@ -5,6 +5,31 @@ export interface ScalableIngredient {
   quantity: string | null;
 }
 
+export interface ScalableMeal {
+  headcount: number | null;
+  serves: number | null;
+  scale_override: number | null;
+}
+
+/**
+ * Derive a meal's effective scale factor:
+ *   scale_override ?? (serves > 0 && headcount > 0 ? headcount / serves : 1)
+ * A manual override always wins; otherwise scale to headcount when both the
+ * recipe yield and headcount are known; otherwise no scaling (1).
+ */
+export function effectiveFactor(meal: ScalableMeal): number {
+  if (meal.scale_override != null && meal.scale_override > 0) {
+    return meal.scale_override;
+  }
+  if (
+    meal.serves != null && meal.serves > 0 &&
+    meal.headcount != null && meal.headcount > 0
+  ) {
+    return meal.headcount / meal.serves;
+  }
+  return 1;
+}
+
 /**
  * Format a number to at most 2 decimal places, stripping trailing zeros.
  * 6 → "6", 1.5 → "1.5", 0.25 → "0.25", 0.333... → "0.33"

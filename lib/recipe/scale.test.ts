@@ -1,5 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { scaleQuantity, scaleIngredients, ScalableIngredient } from './scale';
+import { scaleQuantity, scaleIngredients, effectiveFactor, ScalableIngredient } from './scale';
+
+describe('effectiveFactor', () => {
+  it('uses scale_override when set', () => {
+    expect(effectiveFactor({ headcount: 12, serves: 4, scale_override: 5 })).toBe(5);
+  });
+  it('derives headcount / serves when no override', () => {
+    expect(effectiveFactor({ headcount: 12, serves: 4, scale_override: null })).toBe(3);
+  });
+  it('falls back to 1 when serves is missing', () => {
+    expect(effectiveFactor({ headcount: 12, serves: null, scale_override: null })).toBe(1);
+  });
+  it('falls back to 1 when headcount is missing', () => {
+    expect(effectiveFactor({ headcount: null, serves: 4, scale_override: null })).toBe(1);
+  });
+  it('ignores a non-positive override', () => {
+    expect(effectiveFactor({ headcount: 8, serves: 4, scale_override: 0 })).toBe(2);
+  });
+});
 
 describe('scaleQuantity', () => {
   it('scales a whole number with unit', () => {

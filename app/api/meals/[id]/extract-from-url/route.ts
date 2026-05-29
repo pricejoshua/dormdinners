@@ -39,10 +39,10 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
 
   const mode = raw.mode === 'replace' ? 'replace' : 'append';
 
-  // Verify meal exists
+  // Verify meal exists (and read serves so we only overwrite it when sensible)
   const { data: meal, error: mealError } = await supabaseServerClient
     .from('meals')
-    .select('id')
+    .select('id, serves')
     .eq('id', meal_id)
     .single();
 
@@ -111,10 +111,8 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
   // Primary: RecipeClipper (fast, no LLM). It reads JSON-LD and visible markup,
   // so it gets the raw HTML — JSDOM never executes the embedded scripts. Falls
   // back to the LLM only when it can't find a recipe on the page.
-  let ingredients: Awaited<ReturnType<typeof extractRecipe>> = await clipRecipe(
-    html,
-    raw.url.trim(),
-  );
+  const clipped = await clipRecipe(html, raw.url.trim());
+  let ingredients: Awaited<ReturnType<typeof extractRecipe>> = clipped.ingredients;
 
   if (ingredients.length === 0) {
     // Strip script/style before sending to the LLM to cut token noise.
@@ -167,5 +165,14 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ingredients: inserted });
+  // Persist the recipe's yield as `serves` when extraction found one and the
+  // user hasn't set it themselves — overwrite on replace, fill in when null.
+  if (clipped.serves !== null && (mode === 'replace' || meal.serves === null)) {
+    await supabaseServerClient
+      .from('meals')
+      .update({ serves: clipped.serves })
+      .eq('id', meal_id);
+  }
+
+  return NextResponse.json({ ingredients: inserted, serves: clipped.serves });
 }

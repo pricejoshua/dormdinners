@@ -5,27 +5,47 @@ import { clipRecipe as runClipper } from '@julianpoy/recipe-clipper';
 import { parseIngredient } from 'parse-ingredient';
 import type { RecipeIngredient } from '@/lib/llm/extractRecipe';
 
+export interface ClippedRecipe {
+  ingredients: RecipeIngredient[];
+  /** Recipe's canonical yield (e.g. "Serves 4-6" → 4), or null if unknown. */
+  serves: number | null;
+}
+
 /**
- * Extract recipe ingredients from a page's HTML using RecipeClipper
+ * Extract recipe ingredients and yield from a page's HTML using RecipeClipper
  * (CSS-selector based, ML disabled) running under JSDOM.
  *
- * Returns the same `{ name, quantity, unit }` shape as the LLM extractor so the
- * route can treat both paths uniformly. Returns `[]` — never throws — when no
- * recipe is found or extraction fails, so callers can fall through to the LLM.
+ * Ingredients use the same `{ name, quantity, unit }` shape as the LLM
+ * extractor so the route can treat both paths uniformly. Returns empty
+ * ingredients (and never throws) when no recipe is found or extraction fails,
+ * so callers can fall through to the LLM.
  */
-export async function clipRecipe(html: string, baseUrl: string): Promise<RecipeIngredient[]> {
+export async function clipRecipe(html: string, baseUrl: string): Promise<ClippedRecipe> {
   let ingredientsText = '';
+  let yieldText = '';
 
   try {
     const dom = new JSDOM(html, { url: baseUrl });
     const result = await runClipper({ window: dom.window, mlDisable: true });
     ingredientsText = typeof result?.ingredients === 'string' ? result.ingredients : '';
+    yieldText = typeof result?.yield === 'string' ? result.yield : '';
   } catch (err) {
     console.error('recipe-clipper extraction failed:', err);
-    return [];
+    return { ingredients: [], serves: null };
   }
 
-  return parseIngredientLines(ingredientsText);
+  return {
+    ingredients: parseIngredientLines(ingredientsText),
+    serves: parseServes(yieldText),
+  };
+}
+
+/** Pull the first positive integer out of a yield string ("Serves 4-6" → 4). */
+function parseServes(yieldText: string): number | null {
+  const match = yieldText.match(/\d+/);
+  if (!match) return null;
+  const n = parseInt(match[0], 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /**
