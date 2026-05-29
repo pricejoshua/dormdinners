@@ -80,13 +80,13 @@ interface SuggestionItemProps {
 }
 
 function SuggestionItem({ name, emptySlots, onAccept, onDismiss }: SuggestionItemProps) {
-  const [selectedSlotKey, setSelectedSlotKey] = useState<string>(
+  const [preferredKey, setPreferredKey] = useState<string>(
     emptySlots[0]?.key ?? '',
   );
 
-  // Keep selection valid if emptySlots changes (e.g. another suggestion was accepted).
+  // Fall back to first empty slot if the preferred one was filled by another accept.
   const validKey =
-    emptySlots.find((s) => s.key === selectedSlotKey)?.key ?? emptySlots[0]?.key ?? '';
+    emptySlots.find((s) => s.key === preferredKey)?.key ?? emptySlots[0]?.key ?? '';
 
   const canAccept = validKey !== '';
 
@@ -97,7 +97,7 @@ function SuggestionItem({ name, emptySlots, onAccept, onDismiss }: SuggestionIte
       {canAccept && (
         <select
           value={validKey}
-          onChange={(e) => setSelectedSlotKey(e.target.value)}
+          onChange={(e) => setPreferredKey(e.target.value)}
           className="text-xs border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:border-gray-500 shrink-0"
         >
           {emptySlots.map((s) => (
@@ -136,6 +136,7 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasFetched, setHasFetched] = useState(false);
 
   const emptySlots = slots.filter((s) => s.title.trim() === '');
   const hasEmptySlots = emptySlots.length > 0;
@@ -160,6 +161,7 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
+      setHasFetched(true);
     }
   }
 
@@ -172,7 +174,7 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
     setSuggestions((prev) => prev.filter((s) => s !== name));
   }
 
-  if (!hasEmptySlots) return null;
+  if (!hasEmptySlots && suggestions.length === 0 && !loading) return null;
 
   return (
     <div className="mt-4">
@@ -191,11 +193,15 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
         </p>
       )}
 
+      {!loading && hasFetched && suggestions.length === 0 && !error && (
+        <p className="mt-2 text-xs text-gray-500">No suggestions generated. Try adding more meals or adjusting your preferences.</p>
+      )}
+
       {suggestions.length > 0 && (
         <ul className="mt-3 border border-gray-200 rounded">
-          {suggestions.map((name) => (
+          {suggestions.map((name, i) => (
             <SuggestionItem
-              key={name}
+              key={i}
               name={name}
               emptySlots={emptySlots}
               onAccept={(slotKey) => handleAccept(name, slotKey)}
@@ -203,6 +209,10 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
             />
           ))}
         </ul>
+      )}
+
+      {!hasEmptySlots && suggestions.length > 0 && (
+        <p className="mt-2 text-xs text-gray-500 text-center">All slots are filled.</p>
       )}
 
       {showModal && (
