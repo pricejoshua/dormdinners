@@ -76,6 +76,17 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
   // Keep a global error for network-level failures (e.g. add row)
   const [globalError, setGlobalError] = useState<string | null>(null);
 
+  // ---- receipt state -------------------------------------------------------
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptNotice, setReceiptNotice] = useState<{
+    type: "success" | "error" | "store-needed";
+    message: string;
+    pricedItems?: { name: string; price: number }[];
+  } | null>(null);
+  const [storeInput, setStoreInput] = useState("");
+  const [storeSaving, setStoreSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // ---- helpers -------------------------------------------------------------
   const rowKey = (r: RowState) => r.tempId ?? r.item.id;
 
@@ -92,7 +103,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
 
   // ---- local edit (no network until the user clicks Save) ------------------
   const handleChange = useCallback(
-    (key: string, field: "name" | "notes", value: string) => {
+    (key: string, field: "name" | "notes" | "quantity_unit", value: string) => {
       setRows((prev) =>
         prev.map((r) => {
           if (rowKey(r) !== key) return r;
@@ -100,8 +111,17 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
         })
       );
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
+
+  const handleQuantityAmountChange = useCallback((key: string, value: string) => {
+    const num = value === "" ? null : parseFloat(value);
+    setRows(prev => prev.map(r =>
+      rowKey(r) !== key ? r : { ...r, item: { ...r.item, quantity_amount: isNaN(num as number) ? null : num }, dirty: true }
+    ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ---- save a single row (PATCH for existing, POST for new) ----------------
   const saveRow = useCallback(
@@ -123,6 +143,8 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
           body: JSON.stringify({
             name: row.item.name,
             notes: row.item.notes,
+            quantity_amount: row.item.quantity_amount,
+            quantity_unit: row.item.quantity_unit,
             updated_by: editorName || null,
           }),
         });
@@ -161,6 +183,8 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
         id: "",
         name: "",
         notes: null,
+        quantity_amount: null,
+        quantity_unit: null,
         updated_by: editorName || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -210,9 +234,86 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
     []
   );
 
+  // ---- receipt upload handler ----------------------------------------------
+  const handleReceiptUpload = useCallback(async (file: File) => {
+    setReceiptUploading(true);
+    setReceiptNotice(null);
+    const formData = new FormData();
+    formData.append("image", file);
+    if (editorName) formData.append("updated_by", editorName);
+    try {
+      const res = await fetch("/api/pantry/receipt", { method: "POST", body: formData });
+      const json = await res.json();
+      if (!res.ok) {
+        setReceiptNotice({ type: "error", message: json.error ?? "Receipt parsing failed" });
+        return;
+      }
+      const { store, pantryItems, pricedItems } = json as {
+        store: string | null;
+        pantryItems: PantryItemRow[];
+        pricedItems: { name: string; price: number }[];
+      };
+      // Append new items (already saved, no tempId, not dirty)
+      setRows(prev => [
+        ...prev,
+        ...pantryItems.map(item => ({ item, error: null, saving: false, dirty: false })),
+      ]);
+      if (!store && pricedItems.length > 0) {
+        setReceiptNotice({ type: "store-needed", message: `Added ${pantryItems.length} items. Store not detected — enter store name to save prices:`, pricedItems });
+      } else {
+        const label = store ? ` from ${store}` : "";
+        setReceiptNotice({ type: "success", message: `Added ${pantryItems.length} items${label}.` });
+      }
+    } catch {
+      setReceiptNotice({ type: "error", message: "Network error during receipt upload" });
+    } finally {
+      setReceiptUploading(false);
+    }
+  }, [editorName]);
+
+  // ---- save prices handler (store fallback) --------------------------------
+  const handleSavePrices = useCallback(async () => {
+    if (!storeInput.trim() || !receiptNotice?.pricedItems) return;
+    setStoreSaving(true);
+    try {
+      await Promise.all(
+        receiptNotice.pricedItems.map(item =>
+          fetch("/api/reference-prices", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: item.name,
+              store: storeInput.trim(),
+              price: item.price,
+              updated_by: editorName || null,
+            }),
+          })
+        )
+      );
+      setReceiptNotice({ type: "success", message: `Prices saved to reference prices for ${storeInput.trim()}.` });
+      setStoreInput("");
+    } catch {
+      setReceiptNotice({ type: "error", message: "Failed to save prices" });
+    } finally {
+      setStoreSaving(false);
+    }
+  }, [storeInput, receiptNotice, editorName]);
+
   // -------------------------------------------------------------------------
   return (
     <div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleReceiptUpload(file);
+          e.target.value = ""; // reset so same file can be re-uploaded
+        }}
+      />
+
       {/* Header: editor identity */}
       <div className="mb-3 flex items-center gap-2 text-sm">
         {editingName ? (
@@ -257,12 +358,46 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
         <p className="text-red-600 text-xs mb-2">{globalError}</p>
       )}
 
+      {receiptNotice && (
+        <div className={`mb-3 text-sm rounded px-3 py-2 flex flex-col gap-1 ${
+          receiptNotice.type === "error" ? "bg-red-50 text-red-700" :
+          receiptNotice.type === "store-needed" ? "bg-yellow-50 text-yellow-800" :
+          "bg-green-50 text-green-700"
+        }`}>
+          <div className="flex items-center justify-between gap-2">
+            <span>{receiptNotice.message}</span>
+            <button onClick={() => setReceiptNotice(null)} className="text-xs opacity-60 hover:opacity-100">✕</button>
+          </div>
+          {receiptNotice.type === "store-needed" && (
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="text"
+                value={storeInput}
+                onChange={(e) => setStoreInput(e.target.value)}
+                placeholder="Store name"
+                className="border border-yellow-300 rounded px-2 py-0.5 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-yellow-400"
+                onKeyDown={(e) => { if (e.key === "Enter") void handleSavePrices(); }}
+              />
+              <button
+                onClick={() => void handleSavePrices()}
+                disabled={!storeInput.trim() || storeSaving}
+                className="text-xs px-2 py-0.5 rounded bg-yellow-600 text-white hover:bg-yellow-700 disabled:opacity-40 transition-colors"
+              >
+                {storeSaving ? "Saving…" : "Save prices"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b border-gray-300 text-left text-xs uppercase text-gray-500 tracking-wide">
               <th className="py-1.5 pr-3 font-medium w-48">Name</th>
+              <th className="py-1.5 pr-3 font-medium w-16 whitespace-nowrap">Qty</th>
+              <th className="py-1.5 pr-3 font-medium w-20 whitespace-nowrap">Unit</th>
               <th className="py-1.5 pr-3 font-medium">Notes</th>
               <th className="py-1.5 pr-3 font-medium w-28 whitespace-nowrap">
                 Updated by
@@ -277,7 +412,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
             {rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={7}
                   className="py-4 text-center text-gray-400 text-sm"
                 >
                   No items — add one below.
@@ -310,6 +445,32 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
                         }}
                         className="w-full bg-transparent border-b border-transparent focus:border-gray-400 focus:outline-none py-0.5 px-0 text-sm"
                         placeholder="Item name"
+                        disabled={row.saving}
+                      />
+                    </td>
+                    <td className="py-1 pr-3">
+                      <input
+                        type="number"
+                        value={row.item.quantity_amount ?? ""}
+                        aria-label="Quantity amount"
+                        onChange={(e) => handleQuantityAmountChange(key, e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") void saveRow(key); }}
+                        className="w-full bg-transparent border-b border-transparent focus:border-gray-400 focus:outline-none py-0.5 px-0 text-sm"
+                        placeholder="0"
+                        min="0"
+                        step="any"
+                        disabled={row.saving}
+                      />
+                    </td>
+                    <td className="py-1 pr-3">
+                      <input
+                        type="text"
+                        value={row.item.quantity_unit ?? ""}
+                        aria-label="Unit"
+                        onChange={(e) => handleChange(key, "quantity_unit", e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") void saveRow(key); }}
+                        className="w-full bg-transparent border-b border-transparent focus:border-gray-400 focus:outline-none py-0.5 px-0 text-sm"
+                        placeholder="ea / kg / L"
                         disabled={row.saving}
                       />
                     </td>
@@ -378,7 +539,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
                   {row.error && (
                     <tr className="bg-red-50">
                       <td
-                        colSpan={5}
+                        colSpan={7}
                         className="text-red-600 text-xs px-1 py-0.5"
                       >
                         {row.error}
@@ -392,12 +553,19 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
         </table>
       </div>
 
-      <div className="mt-3">
+      <div className="mt-3 flex items-center gap-3">
         <button
           onClick={handleAddRow}
           className="text-sm text-blue-600 hover:underline border border-dashed border-blue-300 rounded px-3 py-1 hover:bg-blue-50 transition-colors"
         >
           + Add item
+        </button>
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={receiptUploading}
+          className="text-sm text-gray-600 hover:underline border border-dashed border-gray-300 rounded px-3 py-1 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          {receiptUploading ? "Parsing receipt…" : "Upload receipt"}
         </button>
       </div>
     </div>
