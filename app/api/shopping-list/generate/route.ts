@@ -15,6 +15,7 @@ import { NextResponse } from "next/server";
 import { supabaseServerClient } from "@/lib/supabase/server";
 import { currentMondayISO } from "@/app/_lib/weekOf";
 import { generateShoppingList } from "@/lib/shopping-list/generate";
+import { effectiveFactor, scaleIngredients } from "@/lib/recipe/scale";
 import type { ShoppingListItemInsert } from "@/types/database";
 
 export async function POST() {
@@ -23,7 +24,7 @@ export async function POST() {
   // ---- 1. Load meals + ingredients for current week ------------------------
   const { data: mealsData, error: mealsError } = await supabaseServerClient
     .from("meals")
-    .select("id, title, week_of, headcount")
+    .select("id, title, week_of, headcount, serves, scale_override")
     .eq("week_of", weekOf);
 
   if (mealsError) {
@@ -60,9 +61,16 @@ export async function POST() {
     });
   }
 
-  const meals = mealIds.map((id) => ({
-    ingredients: ingredientsByMeal.get(id) ?? [],
-  }));
+  // Scale each meal's ingredients by its effective factor so purchased
+  // amounts match what's actually cooked for this week's headcount.
+  const mealsById = new Map((mealsData ?? []).map((m) => [m.id, m]));
+  const meals = mealIds.map((id) => {
+    const m = mealsById.get(id);
+    const factor = m ? effectiveFactor(m) : 1;
+    return {
+      ingredients: scaleIngredients(ingredientsByMeal.get(id) ?? [], factor),
+    };
+  });
 
   // ---- 2. Load pantry (non-deleted) ----------------------------------------
   const { data: pantryData, error: pantryError } = await supabaseServerClient

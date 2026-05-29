@@ -29,7 +29,10 @@ export interface MealRow {
   id: string;
   title: string;
   week_of: string | null;   // ISO date string, e.g. "2025-01-06"
+  day_of_week: number | null; // 0 = Monday … 4 = Friday
   headcount: number | null;
+  serves: number | null;          // recipe's canonical yield
+  scale_override: number | null;  // manual scale factor; null = derive from headcount/serves
   created_at: string;
 }
 
@@ -65,7 +68,6 @@ export interface OptimizationSuggestionRow {
   meal_ids: string[] | null;
   suggestion_type: string | null;
   description: string | null;
-  estimated_saving: string | null;
   status: string;
   created_at: string;
 }
@@ -101,7 +103,10 @@ export interface MealInsert {
   id?: string;
   title: string;
   week_of?: string | null;
+  day_of_week?: number | null;
   headcount?: number | null;
+  serves?: number | null;
+  scale_override?: number | null;
   created_at?: string;
 }
 
@@ -130,7 +135,6 @@ export interface OptimizationSuggestionInsert {
   meal_ids?: string[] | null;
   suggestion_type?: string | null;
   description?: string | null;
-  estimated_saving?: string | null;
   status?: string;
   created_at?: string;
 }

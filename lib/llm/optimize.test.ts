@@ -53,13 +53,11 @@ const sampleSuggestions = [
     type: 'bulk_buy',
     meal_indices: [0],
     description: 'Buy chicken thighs in bulk at Freshmart for $4.99/lb',
-    estimated_saving: '$3-5',
   },
   {
     type: 'pantry_use',
     meal_indices: [0, 1],
     description: 'Use pantry olive oil instead of buying more',
-    estimated_saving: '$2',
   },
 ];
 
@@ -123,7 +121,6 @@ describe('optimize', () => {
           type: 'invalid_type',
           meal_indices: [0],
           description: 'test',
-          estimated_saving: '$1',
         },
       ]),
     } as Awaited<ReturnType<typeof generateText>>);

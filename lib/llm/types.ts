@@ -4,7 +4,6 @@ export interface Suggestion {
   type: 'bulk_buy' | 'substitution' | 'overlap' | 'pantry_use';
   meal_indices: number[];
   description: string;
-  estimated_saving: string;
 }
 
 export class LLMParseError extends Error {

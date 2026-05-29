@@ -20,18 +20,39 @@ interface WeekViewProps {
   suggestions: OptimizationSuggestionRow[];
 }
 
-/** Pads the fetched meals to exactly MEAL_COUNT slots with browser-only drafts. */
+/** Builds exactly MEAL_COUNT slots, placing each meal in its day_of_week slot.
+ *  Meals without day_of_week fill empty slots in created_at order (legacy data). */
 function buildSlots(meals: MealWithIngredients[]): Slot[] {
-  const slots: Slot[] = meals.slice(0, MEAL_COUNT).map((m) => ({
+  const slots: (Slot | null)[] = Array(MEAL_COUNT).fill(null);
+
+  const toSlot = (m: MealWithIngredients): Slot => ({
     key: m.id,
     id: m.id,
     title: m.title,
     ingredients: m.ingredients,
-  }));
-  while (slots.length < MEAL_COUNT) {
-    slots.push({ key: crypto.randomUUID(), id: null, title: '', ingredients: [] });
+    serves: m.serves,
+    scale_override: m.scale_override,
+  });
+
+  const unplaced: MealWithIngredients[] = [];
+  for (const m of meals) {
+    if (m.day_of_week != null && m.day_of_week >= 0 && m.day_of_week < MEAL_COUNT) {
+      slots[m.day_of_week] = toSlot(m);
+    } else {
+      unplaced.push(m);
+    }
   }
-  return slots;
+
+  for (let i = 0; i < MEAL_COUNT; i++) {
+    if (slots[i] === null) {
+      const m = unplaced.shift();
+      slots[i] = m
+        ? toSlot(m)
+        : { key: crypto.randomUUID(), id: null, title: '', ingredients: [], serves: null, scale_override: null };
+    }
+  }
+
+  return slots as Slot[];
 }
 
 export default function WeekView({ weekOf, meals, suggestions }: WeekViewProps) {
