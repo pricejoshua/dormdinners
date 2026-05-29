@@ -116,6 +116,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       );
     }
     if (err instanceof LLMRequestError) {
+      console.error('[optimize] LLM request error cause:', err.cause);
       return NextResponse.json(
         { error: `LLM request failed: ${err.message}` },
         { status: 502 },
@@ -128,14 +129,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ suggestions: [] });
   }
 
-  // ── 8. Map meal_indices → meal_ids and insert ─────────────────────────────
+  // ── 8. Clear stale pending suggestions for this week ─────────────────────
+  await supabaseServerClient
+    .from('optimization_suggestions')
+    .delete()
+    .in('status', ['pending', 'dismissed'])
+    .filter('meal_ids', 'ov', `{${mealIds.join(',')}}`);
+
+  // ── 9. Map meal_indices → meal_ids and insert ─────────────────────────────
   const inserts = suggestions.map((s) => ({
     meal_ids: s.meal_indices
       .filter((idx) => idx >= 0 && idx < mealRows.length)
       .map((idx) => mealRows[idx].id),
     suggestion_type: s.type,
     description: s.description,
-    estimated_saving: s.estimated_saving || null,
     status: 'pending' as const,
   }));
 

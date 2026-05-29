@@ -41,7 +41,6 @@ function makeSuggestion(
     meal_ids: null,
     suggestion_type: null,
     description: null,
-    estimated_saving: null,
     status: "accepted",
     created_at: new Date().toISOString(),
     ...overrides,

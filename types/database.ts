@@ -68,7 +68,6 @@ export interface OptimizationSuggestionRow {
   meal_ids: string[] | null;
   suggestion_type: string | null;
   description: string | null;
-  estimated_saving: string | null;
   status: string;
   created_at: string;
 }
@@ -136,7 +135,6 @@ export interface OptimizationSuggestionInsert {
   meal_ids?: string[] | null;
   suggestion_type?: string | null;
   description?: string | null;
-  estimated_saving?: string | null;
   status?: string;
   created_at?: string;
 }

@@ -59,6 +59,7 @@ ${formatMeals(input.meals)}
 Identify opportunities to save money or reduce waste. Look for:
 - Ingredients that appear in multiple meals (bulk buy opportunity)
 - Cheaper ingredient substitutions based on this week's deals
+- Ingredient swaps that can optimize purchasing in bulk (e.g. ground pork to ground beef, if ground beef is already being used)
 - Pantry items that could replace something on the shopping list
 - Bulk sizes that make sense given headcount
 
@@ -67,7 +68,6 @@ Return a JSON array of suggestions:
   type: "bulk_buy" | "substitution" | "overlap" | "pantry_use",
   meal_indices: [0, 2],
   description: "human readable suggestion",
-  estimated_saving: "$3-5"
 }]
 Return only JSON, no preamble.`;
 
@@ -132,8 +132,6 @@ Return only JSON, no preamble.`;
       type: obj.type as Suggestion['type'],
       meal_indices: obj.meal_indices as number[],
       description: obj.description,
-      estimated_saving:
-        typeof obj.estimated_saving === 'string' ? obj.estimated_saving : '',
     };
   });
 }

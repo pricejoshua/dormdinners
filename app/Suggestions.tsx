@@ -56,12 +56,6 @@ function SuggestionRow({ suggestion }: SuggestionRowProps) {
 
       <span className="flex-1 text-gray-800">{suggestion.description}</span>
 
-      {suggestion.estimated_saving && (
-        <span className="text-xs text-gray-500 shrink-0 whitespace-nowrap">
-          {suggestion.estimated_saving}
-        </span>
-      )}
-
       {!isResolved ? (
         <div className="flex gap-1 shrink-0">
           <button
