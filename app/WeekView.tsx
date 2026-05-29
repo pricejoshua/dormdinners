@@ -11,6 +11,7 @@ import {
 } from '@/app/WeeklyPlan';
 import Suggestions from '@/app/Suggestions';
 import type { OptimizationSuggestionRow } from '@/types/database';
+import type { PriceRow } from '@/lib/prices/lookup';
 
 const MEAL_COUNT = 5;
 
@@ -18,6 +19,7 @@ interface WeekViewProps {
   weekOf: string;
   meals: MealWithIngredients[];
   suggestions: OptimizationSuggestionRow[];
+  referencePrices: PriceRow[];
 }
 
 /** Builds exactly MEAL_COUNT slots, placing each meal in its day_of_week slot.
@@ -55,7 +57,7 @@ function buildSlots(meals: MealWithIngredients[]): Slot[] {
   return slots as Slot[];
 }
 
-export default function WeekView({ weekOf, meals, suggestions }: WeekViewProps) {
+export default function WeekView({ weekOf, meals, suggestions, referencePrices }: WeekViewProps) {
   const router = useRouter();
 
   // Slots are rebuilt whenever the server hands us a new week's meals.
@@ -164,6 +166,7 @@ export default function WeekView({ weekOf, meals, suggestions }: WeekViewProps) 
             index={i}
             weekOf={weekOf}
             headcount={headcount}
+            referencePrices={referencePrices}
             onSummaryChange={handleSummaryChange}
           />
         ))}

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { MealIngredientRow, MealRow } from '@/types/database';
 import { effectiveFactor, scaleQuantity } from '@/lib/recipe/scale';
 import { sumWeight } from '@/lib/recipe/weight';
+import { bestPriceForIngredient, type PriceRow } from '@/lib/prices/lookup';
 
 export interface MealWithIngredients extends MealRow {
   ingredients: MealIngredientRow[];
@@ -80,10 +81,11 @@ interface MealSlotProps {
   index: number;
   weekOf: string;
   headcount: number;
+  referencePrices: PriceRow[];
   onSummaryChange: (key: string, patch: Partial<SlotSummary>) => void;
 }
 
-function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotProps) {
+function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryChange }: MealSlotProps) {
   const [mealId, setMealId] = useState<string | null>(slot.id);
   const [title, setTitle] = useState(slot.title);
   const [ingredients, setIngredients] = useState<MealIngredientRow[]>(slot.ingredients);
@@ -379,6 +381,14 @@ function MealSlot({ slot, index, weekOf, headcount, onSummaryChange }: MealSlotP
                         className="text-sm"
                         inputClassName="w-full"
                       />
+                      {(() => {
+                        const hint = bestPriceForIngredient(ing.name, referencePrices);
+                        return hint ? (
+                          <div className="text-xs text-gray-400">
+                            ~${hint.perValue}/{hint.perUnit} · cheapest at {hint.store}
+                          </div>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="py-0.5 pr-2">
                       <InlineEdit

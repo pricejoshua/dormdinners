@@ -78,6 +78,12 @@ export default async function ThisWeekPage({ searchParams }: PageProps) {
     .select('*')
     .order('created_at', { ascending: false });
 
+  // Reference prices (group-maintained) for the per-ingredient planner hint.
+  const { data: referencePricesData } = await supabaseServerClient
+    .from('reference_prices')
+    .select('name, store, price, size_amount, size_unit')
+    .is('deleted_at', null);
+
   const existingSuggestions: OptimizationSuggestionRow[] = (suggestionsData ?? []).filter((s) => {
     if (!Array.isArray(s.meal_ids)) return false;
     return (s.meal_ids as string[]).some((id) => weekMealSet.has(id));
@@ -91,6 +97,7 @@ export default async function ThisWeekPage({ searchParams }: PageProps) {
         weekOf={weekOf}
         meals={mealsWithIngredients}
         suggestions={existingSuggestions}
+        referencePrices={referencePricesData ?? []}
       />
     </div>
   );
