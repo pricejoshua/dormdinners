@@ -86,6 +86,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
   const [storeInput, setStoreInput] = useState("");
   const [storeSaving, setStoreSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   // ---- helpers -------------------------------------------------------------
   const rowKey = (r: RowState) => r.tempId ?? r.item.id;
@@ -310,7 +311,19 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) void handleReceiptUpload(file);
-          e.target.value = ""; // reset so same file can be re-uploaded
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleReceiptUpload(file);
+          e.target.value = "";
         }}
       />
 
@@ -486,7 +499,7 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
                           if (e.key === "Enter") void saveRow(key);
                         }}
                         className="w-full bg-transparent border-b border-transparent focus:border-gray-400 focus:outline-none py-0.5 px-0 text-sm font-mono"
-                        placeholder="e.g. half a bag"
+                        placeholder="e.g. expires soon"
                         disabled={row.saving}
                       />
                     </td>
@@ -566,6 +579,13 @@ export default function PantryTable({ initialItems }: PantryTableProps) {
           className="text-sm text-gray-600 hover:underline border border-dashed border-gray-300 rounded px-3 py-1 hover:bg-gray-50 transition-colors disabled:opacity-50"
         >
           {receiptUploading ? "Parsing receipt…" : "Upload receipt"}
+        </button>
+        <button
+          onClick={() => cameraInputRef.current?.click()}
+          disabled={receiptUploading}
+          className="text-sm text-gray-600 hover:underline border border-dashed border-gray-300 rounded px-3 py-1 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          {receiptUploading ? "Parsing receipt…" : "Take photo"}
         </button>
       </div>
     </div>
