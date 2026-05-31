@@ -10,6 +10,7 @@ import {
   type SlotSummary,
 } from '@/app/WeeklyPlan';
 import Suggestions from '@/app/Suggestions';
+import MealSuggestions, { type SuggestionSlot } from '@/app/MealSuggestions';
 import type { OptimizationSuggestionRow } from '@/types/database';
 import type { PriceRow } from '@/lib/prices/lookup';
 
@@ -67,6 +68,7 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
   const [headcount, setHeadcount] = useState<number>(initialHeadcount);
   const [headcountInput, setHeadcountInput] = useState<string>(String(initialHeadcount));
   const [savingHeadcount, setSavingHeadcount] = useState(false);
+  const [pendingTitles, setPendingTitles] = useState<Map<string, string>>(new Map());
 
   // Live per-slot summaries, keyed by stable slot key, for the completeness gate.
   const [summaries, setSummaries] = useState<Map<string, SlotSummary>>(() => {
@@ -86,12 +88,30 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
     });
   }
 
+  function handleSuggestionAccept(slotKey: string, title: string) {
+    setPendingTitles((prev) => new Map(prev).set(slotKey, title));
+  }
+
+  function handlePendingTitleConsumed(slotKey: string) {
+    setPendingTitles((prev) => {
+      const next = new Map(prev);
+      next.delete(slotKey);
+      return next;
+    });
+  }
+
   const complete =
     slots.length === MEAL_COUNT &&
     slots.every((s) => {
       const sum = summaries.get(s.key);
       return !!sum && sum.title.trim().length > 0 && sum.ingredientCount > 0;
     });
+
+  const suggestionSlots: SuggestionSlot[] = slots.map((s, i) => ({
+    key: s.key,
+    index: i,
+    title: summaries.get(s.key)?.title ?? '',
+  }));
 
   async function saveHeadcount() {
     const parsed = parseInt(headcountInput, 10);
@@ -168,10 +188,17 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
             headcount={headcount}
             referencePrices={referencePrices}
             onSummaryChange={handleSummaryChange}
+            pendingTitle={pendingTitles.get(slot.key)}
+            onPendingTitleConsumed={() => handlePendingTitleConsumed(slot.key)}
           />
         ))}
       </ul>
 
+      <MealSuggestions
+        weekOf={weekOf}
+        slots={suggestionSlots}
+        onAccept={handleSuggestionAccept}
+      />
       <Suggestions initial={suggestions} complete={complete} weekOf={weekOf} />
     </div>
   );
