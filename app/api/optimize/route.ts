@@ -110,6 +110,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     suggestions = await optimize(optimizeInput);
   } catch (err) {
     if (err instanceof LLMParseError) {
+      console.error('[optimize] LLM parse error. raw response:', err.raw);
       return NextResponse.json(
         { error: `LLM returned malformed JSON: ${err.message}` },
         { status: 502 },

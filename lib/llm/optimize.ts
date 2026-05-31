@@ -52,13 +52,11 @@ export async function optimize(input: OptimizeInput): Promise<Suggestion[]> {
 
 Headcount: ${input.headcount}
 Pantry: ${formatPantry(input.pantry)}
-This week's Flipp deals: ${formatFlipp(input.flipp)}
 Meals planned:
 ${formatMeals(input.meals)}
 
 Identify opportunities to save money or reduce waste. Look for:
 - Ingredients that appear in multiple meals (bulk buy opportunity)
-- Cheaper ingredient substitutions based on this week's deals
 - Ingredient swaps that can optimize purchasing in bulk (e.g. ground pork to ground beef, if ground beef is already being used)
 - Pantry items that could replace something on the shopping list
 - Bulk sizes that make sense given headcount
@@ -76,7 +74,7 @@ Return only JSON, no preamble.`;
   try {
     const result = await generateText({
       model: getModel(),
-      maxTokens: 2048,
+      maxTokens: 4096,
       messages: [
         {
           role: 'user',
@@ -85,6 +83,7 @@ Return only JSON, no preamble.`;
       ],
     });
     text = result.text;
+    console.log('[optimize] raw LLM response:', text);
   } catch (err) {
     throw new LLMRequestError('LLM request failed during optimization', err);
   }

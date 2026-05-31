@@ -29,6 +29,7 @@ ${html}`,
       ],
     });
     text = result.text;
+    console.log('[extractRecipe] raw LLM response:', text);
   } catch (err) {
     throw new LLMRequestError('LLM request failed during recipe extraction', err);
   }

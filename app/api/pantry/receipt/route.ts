@@ -58,7 +58,10 @@ Extract all purchased items and return ONLY a JSON object (no preamble, no markd
 }
 quantity_amount and quantity_unit may be null if not shown.
 price may be null if not clearly a per-item price.
-try to guess item names based on context clues.
+try to guess item names based on context clues. If you are not confident, don't touch the item names.
+you can also make guesses on quantities, based on the item name
+combine entries that are the same, and use a quantity and the 'ea' or 'pack' unit to describe them.
+if an entry does not seem to be a food item (e.g. a coupon entry), do not include it.
 Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
             },
           ],
@@ -66,6 +69,7 @@ Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
       ],
     });
     llmText = result.text;
+    console.log('[receipt] raw LLM response:', llmText);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: 'Receipt parsing failed', detail: msg }, { status: 502 });
