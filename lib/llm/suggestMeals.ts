@@ -11,6 +11,7 @@ export interface SuggestMealsInput {
     ingredients: { name: string; quantity: string | null }[];
   }[];
   preferences?: string;
+  dietaryRestrictions?: string;
 }
 
 function formatPantry(pantry: SuggestMealsInput['pantry']): string {
@@ -31,6 +32,10 @@ function formatMeals(meals: SuggestMealsInput['meals']): string {
 }
 
 export async function suggestMeals(input: SuggestMealsInput): Promise<string[]> {
+  const restrictionsLine = input.dietaryRestrictions?.trim()
+    ? `\nDietary restrictions: ${input.dietaryRestrictions.trim()}`
+    : '';
+
   const preferencesLine = input.preferences?.trim()
     ? `\nUser preferences: ${input.preferences.trim()}`
     : '';
@@ -39,7 +44,7 @@ export async function suggestMeals(input: SuggestMealsInput): Promise<string[]> 
 
 Pantry (already owned): ${formatPantry(input.pantry)}
 Meals already planned this week:
-${formatMeals(input.meals)}${preferencesLine}
+${formatMeals(input.meals)}${restrictionsLine}${preferencesLine}
 
 Suggest 6 meal ideas that would work well alongside the existing meals. Favour meals that:
 - Reuse ingredients already appearing in the planned meals (reducing shopping)
