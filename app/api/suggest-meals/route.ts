@@ -87,7 +87,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   ]);
 
   const standingRestrictions = settingsResult.data?.value ?? '';
-  const weekOverride = weekSettingsResult.data?.dietary_restrictions ?? null;
+  const weekOverride = weekSettingsResult.data
+    ? weekSettingsResult.data.dietary_restrictions
+    : null;
   const dietaryRestrictions = (weekOverride !== null ? weekOverride : standingRestrictions) || undefined;
 
   // ── 5. Call LLM ────────────────────────────────────────────────────────────
