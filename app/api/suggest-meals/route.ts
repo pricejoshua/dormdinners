@@ -72,7 +72,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: pantryError.message }, { status: 500 });
   }
 
-  // ── 4. Call LLM ────────────────────────────────────────────────────────────
+  // ── 4. Load effective dietary restrictions ─────────────────────────────────
+  const [settingsResult, weekSettingsResult] = await Promise.all([
+    supabaseServerClient
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'dietary_restrictions')
+      .maybeSingle(),
+    supabaseServerClient
+      .from('week_settings')
+      .select('dietary_restrictions')
+      .eq('week_of', weekOf)
+      .maybeSingle(),
+  ]);
+
+  const standingRestrictions = settingsResult.data?.value ?? '';
+  const weekOverride = weekSettingsResult.data?.dietary_restrictions ?? null;
+  const dietaryRestrictions = (weekOverride !== null ? weekOverride : standingRestrictions) || undefined;
+
+  // ── 5. Call LLM ────────────────────────────────────────────────────────────
   const input = {
     pantry: (pantryData ?? []).map((p) => ({ name: p.name, notes: p.notes })),
     meals: mealRows.map((meal) => ({
@@ -80,6 +98,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       ingredients: ingredientsByMeal.get(meal.id) ?? [],
     })),
     preferences,
+    dietaryRestrictions,
   };
 
   let suggestions: string[];
