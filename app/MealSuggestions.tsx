@@ -74,57 +74,72 @@ function PreflightModal({ onGenerate, onClose }: PreflightModalProps) {
 
 interface SuggestionItemProps {
   name: string;
+  reason: string;
   emptySlots: SuggestionSlot[];
   onAccept: (slotKey: string) => void;
   onDismiss: () => void;
 }
 
-function SuggestionItem({ name, emptySlots, onAccept, onDismiss }: SuggestionItemProps) {
+function SuggestionItem({ name, reason, emptySlots, onAccept, onDismiss }: SuggestionItemProps) {
   const [preferredKey, setPreferredKey] = useState<string>(
     emptySlots[0]?.key ?? '',
   );
+  const [showReason, setShowReason] = useState(false);
 
-  // Fall back to first empty slot if the preferred one was filled by another accept.
   const validKey =
     emptySlots.find((s) => s.key === preferredKey)?.key ?? emptySlots[0]?.key ?? '';
-
   const canAccept = validKey !== '';
 
   return (
-    <li className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-b-0 text-sm">
-      <span className="flex-1 text-gray-800">{name}</span>
-
-      {canAccept && (
-        <select
-          value={validKey}
-          onChange={(e) => setPreferredKey(e.target.value)}
-          className="text-xs border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:border-gray-500 shrink-0"
+    <li className="py-1.5 border-b border-gray-100 last:border-b-0 text-sm">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowReason((v) => !v)}
+          className="text-gray-400 hover:text-gray-600 text-xs shrink-0 w-3 text-left"
+          aria-label={showReason ? 'Hide reason' : 'Show reason'}
         >
-          {emptySlots.map((s) => (
-            <option key={s.key} value={s.key}>
-              {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const)[s.index] ?? `Slot ${s.index + 1}`}
-            </option>
-          ))}
-        </select>
+          {showReason ? '▾' : '▸'}
+        </button>
+
+        <span className="flex-1 text-gray-800">{name}</span>
+
+        {canAccept && (
+          <select
+            value={validKey}
+            onChange={(e) => setPreferredKey(e.target.value)}
+            className="text-xs border border-gray-300 rounded px-1.5 py-0.5 focus:outline-none focus:border-gray-500 shrink-0"
+          >
+            {emptySlots.map((s) => (
+              <option key={s.key} value={s.key}>
+                {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const)[s.index] ?? `Slot ${s.index + 1}`}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <button
+          type="button"
+          disabled={!canAccept}
+          onClick={() => onAccept(validKey)}
+          className="text-xs px-2 py-0.5 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+        >
+          Accept
+        </button>
+
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-gray-400 hover:text-red-500 text-xs shrink-0"
+          aria-label="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+
+      {showReason && (
+        <p className="mt-1 ml-5 text-xs text-gray-500 leading-relaxed">{reason}</p>
       )}
-
-      <button
-        type="button"
-        disabled={!canAccept}
-        onClick={() => onAccept(validKey)}
-        className="text-xs px-2 py-0.5 border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
-      >
-        Accept
-      </button>
-
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="text-gray-400 hover:text-red-500 text-xs shrink-0"
-        aria-label="Dismiss"
-      >
-        ✕
-      </button>
     </li>
   );
 }
@@ -133,7 +148,7 @@ function SuggestionItem({ name, emptySlots, onAccept, onDismiss }: SuggestionIte
 
 export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggestionsProps) {
   const [showModal, setShowModal] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<{ name: string; reason: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
@@ -151,7 +166,7 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weekOf, preferences: preferences.trim() || undefined }),
       });
-      const json = (await res.json()) as { suggestions?: string[]; error?: string };
+      const json = (await res.json()) as { suggestions?: { name: string; reason: string }[]; error?: string };
       if (!res.ok) {
         setError(json.error ?? 'Suggestion failed.');
       } else {
@@ -167,11 +182,11 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
 
   function handleAccept(name: string, slotKey: string) {
     onAccept(slotKey, name);
-    setSuggestions((prev) => prev.filter((s) => s !== name));
+    setSuggestions((prev) => prev.filter((s) => s.name !== name));
   }
 
   function handleDismiss(name: string) {
-    setSuggestions((prev) => prev.filter((s) => s !== name));
+    setSuggestions((prev) => prev.filter((s) => s.name !== name));
   }
 
   if (!hasEmptySlots && suggestions.length === 0 && !loading) return null;
@@ -199,13 +214,14 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
 
       {suggestions.length > 0 && (
         <ul className="mt-3 border border-gray-200 rounded">
-          {suggestions.map((name, i) => (
+          {suggestions.map((suggestion, i) => (
             <SuggestionItem
               key={i}
-              name={name}
+              name={suggestion.name}
+              reason={suggestion.reason}
               emptySlots={emptySlots}
-              onAccept={(slotKey) => handleAccept(name, slotKey)}
-              onDismiss={() => handleDismiss(name)}
+              onAccept={(slotKey) => handleAccept(suggestion.name, slotKey)}
+              onDismiss={() => handleDismiss(suggestion.name)}
             />
           ))}
         </ul>
