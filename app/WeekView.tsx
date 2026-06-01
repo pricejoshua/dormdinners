@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addWeeksISO } from '@/app/_lib/weekOf';
 import {
@@ -13,6 +13,7 @@ import Suggestions from '@/app/Suggestions';
 import MealSuggestions, { type SuggestionSlot } from '@/app/MealSuggestions';
 import type { OptimizationSuggestionRow } from '@/types/database';
 import type { PriceRow } from '@/lib/prices/lookup';
+import DietaryRestrictionsModal from '@/app/DietaryRestrictionsModal';
 
 const MEAL_COUNT = 5;
 
@@ -68,6 +69,21 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
   const [headcount, setHeadcount] = useState<number>(initialHeadcount);
   const [headcountInput, setHeadcountInput] = useState<string>(String(initialHeadcount));
   const [savingHeadcount, setSavingHeadcount] = useState(false);
+  const [standing, setStanding] = useState('');
+  const [weekOverride, setWeekOverride] = useState<string | null>(null);
+  const [showDietaryModal, setShowDietaryModal] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/week-settings/${weekOf}/dietary-restrictions`)
+      .then((r) => r.json())
+      .then((data: { standing: string; weekOverride: string | null }) => {
+        setStanding(data.standing ?? '');
+        setWeekOverride(data.weekOverride ?? null);
+      })
+      .catch(() => {});
+  }, [weekOf]);
+
+  const effectiveRestrictions = weekOverride !== null ? weekOverride : standing;
   const [pendingTitles, setPendingTitles] = useState<Map<string, string>>(new Map());
 
   // Live per-slot summaries, keyed by stable slot key, for the completeness gate.
@@ -159,22 +175,43 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
         </button>
       </div>
 
-      {/* Headcount */}
-      <div className="flex items-center gap-2 mb-4">
-        <label htmlFor="headcount" className="text-sm text-gray-700 font-medium">
-          Headcount
-        </label>
-        <input
-          id="headcount"
-          type="number"
-          min={1}
-          value={headcountInput}
-          onChange={(e) => setHeadcountInput(e.target.value)}
-          onBlur={() => { void saveHeadcount(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') { void saveHeadcount(); } }}
-          className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-500"
-        />
-        {savingHeadcount && <span className="text-xs text-gray-400">Saving…</span>}
+      {/* Headcount + Dietary restrictions */}
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label htmlFor="headcount" className="text-sm text-gray-700 font-medium">
+            Headcount
+          </label>
+          <input
+            id="headcount"
+            type="number"
+            min={1}
+            value={headcountInput}
+            onChange={(e) => setHeadcountInput(e.target.value)}
+            onBlur={() => { void saveHeadcount(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { void saveHeadcount(); } }}
+            className="w-16 border border-gray-300 rounded px-2 py-0.5 text-sm focus:outline-none focus:border-gray-500"
+          />
+          {savingHeadcount && <span className="text-xs text-gray-400">Saving…</span>}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-700 font-medium shrink-0">Dietary restrictions</span>
+          <span className="text-sm text-gray-600 max-w-[200px] truncate">
+            {effectiveRestrictions || <span className="text-gray-400">None</span>}
+          </span>
+          {weekOverride !== null && weekOverride !== '' && (
+            <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5 shrink-0">this week</span>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowDietaryModal(true)}
+            className="text-gray-400 hover:text-gray-700 shrink-0"
+            aria-label="Edit dietary restrictions"
+            title="Edit dietary restrictions"
+          >
+            ✎
+          </button>
+        </div>
       </div>
 
       {/* Meal list */}
@@ -200,6 +237,18 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
         onAccept={handleSuggestionAccept}
       />
       <Suggestions initial={suggestions} complete={complete} weekOf={weekOf} />
+      {showDietaryModal && (
+        <DietaryRestrictionsModal
+          weekOf={weekOf}
+          standing={standing}
+          weekOverride={weekOverride}
+          onClose={() => setShowDietaryModal(false)}
+          onSaved={(newStanding, newWeekOverride) => {
+            setStanding(newStanding);
+            setWeekOverride(newWeekOverride);
+          }}
+        />
+      )}
     </div>
   );
 }
