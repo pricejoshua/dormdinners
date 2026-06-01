@@ -31,7 +31,7 @@ function formatMeals(meals: SuggestMealsInput['meals']): string {
     .join('\n');
 }
 
-export async function suggestMeals(input: SuggestMealsInput): Promise<string[]> {
+export async function suggestMeals(input: SuggestMealsInput): Promise<{ name: string; reason: string }[]> {
   const restrictionsLine = input.dietaryRestrictions?.trim()
     ? `\nDietary restrictions: ${input.dietaryRestrictions.trim()}`
     : '';
@@ -51,15 +51,16 @@ Suggest 6 meal ideas that would work well alongside the existing meals. Favour m
 - Draw on pantry items where possible
 - Are practical for a group cooking setting
 
-Return a JSON array of meal name strings only — no descriptions, no explanations.
-Example: ["Pasta Primavera", "Fried Rice", "Chicken Stir Fry", "Lentil Soup", "Veggie Tacos", "Shakshuka"]
-Return only JSON, no preamble.`;
+Return a JSON array of objects — no preamble, no markdown fences.
+Each object must have exactly two fields: "name" (the meal title) and "reason" (one sentence explaining why it fits).
+Example: [{"name":"Pasta Primavera","reason":"Uses the pasta and cherry tomatoes already in your pantry"},{"name":"Fried Rice","reason":"Reuses the rice from Monday's planned meal"}]
+Return only JSON.`;
 
   let text: string;
   try {
     const result = await generateText({
       model: getModel(),
-      maxTokens: 1024,
+      maxTokens: 2048,
       temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     });
@@ -82,5 +83,13 @@ Return only JSON, no preamble.`;
     throw new LLMParseError('Expected JSON array from meal suggestion response', text);
   }
 
-  return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  return parsed.filter(
+    (item): item is { name: string; reason: string } =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as Record<string, unknown>).name === 'string' &&
+      (item as Record<string, unknown>).name !== '' &&
+      typeof (item as Record<string, unknown>).reason === 'string' &&
+      (item as Record<string, unknown>).reason !== '',
+  );
 }
