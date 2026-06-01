@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateText } from 'ai';
 import { getVisionModel } from '@/lib/llm/client';
 import { supabaseServerClient } from '@/lib/supabase/server';
-import type { PantryItemRow, PantryItemInsert, ReferencePriceRow, ReferencePriceInsert } from '@/types/database';
+import type { PantryItemRow, PantryItemInsert, ReferencePriceRow } from '@/types/database';
 
 interface ReceiptItem {
   name: string;
@@ -119,32 +119,8 @@ Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
     return NextResponse.json({ error: pantryError.message }, { status: 500 });
   }
 
-  let referencePriceData: ReferencePriceRow[] = [];
-  if (store !== null) {
-    const priceInserts: ReferencePriceInsert[] = items
-      .filter((item) => item.price !== null)
-      .map((item) => ({
-        name: item.name,
-        store,
-        price: item.price as number,
-        size_amount: item.quantity_amount,
-        size_unit: item.quantity_unit,
-        updated_by: updatedBy,
-      }));
-
-    if (priceInserts.length > 0) {
-      const { data: priceData, error: priceError } = await supabaseServerClient
-        .from('reference_prices')
-        .insert(priceInserts)
-        .select();
-
-      if (priceError) {
-        return NextResponse.json({ error: priceError.message }, { status: 500 });
-      }
-
-      referencePriceData = priceData ?? [];
-    }
-  }
+  // Reference price saving disabled
+  const referencePriceData: ReferencePriceRow[] = [];
 
   const pricedItems =
     store === null
