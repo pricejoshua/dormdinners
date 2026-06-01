@@ -23,27 +23,31 @@ describe('extractRecipe', () => {
 
   it('parses a valid JSON ingredient array', async () => {
     mockGenerateText.mockResolvedValue({
-      text: JSON.stringify([
-        { name: 'flour', quantity: '2', unit: 'cups' },
-        { name: 'eggs', quantity: '3', unit: '' },
-      ]),
+      text: JSON.stringify({
+        serves: 4,
+        ingredients: [
+          { name: 'flour', quantity: '2', unit: 'cups' },
+          { name: 'eggs', quantity: '3', unit: '' },
+        ],
+      }),
     } as Awaited<ReturnType<typeof generateText>>);
 
     const result = await extractRecipe('<html>recipe</html>');
 
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual({ name: 'flour', quantity: '2', unit: 'cups' });
-    expect(result[1]).toEqual({ name: 'eggs', quantity: '3', unit: '' });
+    expect(result.serves).toBe(4);
+    expect(result.ingredients).toHaveLength(2);
+    expect(result.ingredients[0]).toEqual({ name: 'flour', quantity: '2', unit: 'cups' });
+    expect(result.ingredients[1]).toEqual({ name: 'eggs', quantity: '3', unit: '' });
   });
 
   it('strips markdown code fences from response', async () => {
-    const json = JSON.stringify([{ name: 'sugar', quantity: '1', unit: 'cup' }]);
+    const json = JSON.stringify({ serves: null, ingredients: [{ name: 'sugar', quantity: '1', unit: 'cup' }] });
     mockGenerateText.mockResolvedValue({
       text: '```json\n' + json + '\n```',
     } as Awaited<ReturnType<typeof generateText>>);
 
     const result = await extractRecipe('<html>recipe</html>');
-    expect(result[0].name).toBe('sugar');
+    expect(result.ingredients[0].name).toBe('sugar');
   });
 
   it('throws LLMParseError on invalid JSON', async () => {
@@ -54,9 +58,9 @@ describe('extractRecipe', () => {
     await expect(extractRecipe('<html>recipe</html>')).rejects.toThrow(LLMParseError);
   });
 
-  it('throws LLMParseError when response is not an array', async () => {
+  it('throws LLMParseError when response is a primitive', async () => {
     mockGenerateText.mockResolvedValue({
-      text: JSON.stringify({ name: 'flour' }),
+      text: JSON.stringify(42),
     } as Awaited<ReturnType<typeof generateText>>);
 
     await expect(extractRecipe('<html>recipe</html>')).rejects.toThrow(LLMParseError);
@@ -81,7 +85,7 @@ describe('extractRecipe', () => {
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: 'user',
-            content: expect.stringContaining('Extract a list of ingredients'),
+            content: expect.stringContaining('Extract recipe data from this page'),
           }),
         ]),
       }),

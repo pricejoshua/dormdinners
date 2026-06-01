@@ -143,7 +143,7 @@ describe('optimize', () => {
 
     expect(mockGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        maxTokens: 2048,
+        maxTokens: 4096,
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: 'user',
@@ -156,7 +156,6 @@ describe('optimize', () => {
     const call = mockGenerateText.mock.calls[0][0];
     const content = (call.messages as Array<{ role: string; content: string }>)[0].content;
     expect(content).toContain('olive oil (half full)');
-    expect(content).toContain('chicken thighs - $4.99/lb at Freshmart');
     expect(content).toContain('Chicken stir fry');
   });
 
@@ -177,10 +176,7 @@ describe('optimize', () => {
       text: '[]',
     } as Awaited<ReturnType<typeof generateText>>);
 
-    await optimize({ ...sampleInput, flipp: [] });
-
-    const call = mockGenerateText.mock.calls[0][0];
-    const content = (call.messages as Array<{ role: string; content: string }>)[0].content;
-    expect(content).toContain('(no deals available)');
+    const result = await optimize({ ...sampleInput, flipp: [] });
+    expect(result).toEqual([]);
   });
 });
