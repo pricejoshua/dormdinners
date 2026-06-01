@@ -112,13 +112,16 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
   // so it gets the raw HTML — JSDOM never executes the embedded scripts. Falls
   // back to the LLM only when it can't find a recipe on the page.
   const clipped = await clipRecipe(html, raw.url.trim());
-  let ingredients: Awaited<ReturnType<typeof extractRecipe>> = clipped.ingredients;
+  let ingredients = clipped.ingredients;
+  let extractedServes: number | null = clipped.serves;
 
   if (ingredients.length === 0) {
     // Strip script/style before sending to the LLM to cut token noise.
     const cleanedHtml = stripScriptAndStyle(html);
     try {
-      ingredients = await extractRecipe(cleanedHtml);
+      const llmResult = await extractRecipe(cleanedHtml);
+      ingredients = llmResult.ingredients;
+      if (extractedServes === null) extractedServes = llmResult.serves;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return NextResponse.json(
@@ -167,12 +170,12 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
 
   // Persist the recipe's yield as `serves` when extraction found one and the
   // user hasn't set it themselves — overwrite on replace, fill in when null.
-  if (clipped.serves !== null && (mode === 'replace' || meal.serves === null)) {
+  if (extractedServes !== null && (mode === 'replace' || meal.serves === null)) {
     await supabaseServerClient
       .from('meals')
-      .update({ serves: clipped.serves })
+      .update({ serves: extractedServes })
       .eq('id', meal_id);
   }
 
-  return NextResponse.json({ ingredients: inserted, serves: clipped.serves });
+  return NextResponse.json({ ingredients: inserted, serves: extractedServes });
 }

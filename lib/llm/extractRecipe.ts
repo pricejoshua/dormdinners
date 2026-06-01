@@ -10,7 +10,12 @@ export interface RecipeIngredient {
   unit: string;
 }
 
-export async function extractRecipe(html: string): Promise<RecipeIngredient[]> {
+export interface ExtractedRecipe {
+  ingredients: RecipeIngredient[];
+  serves: number | null;
+}
+
+export async function extractRecipe(html: string): Promise<ExtractedRecipe> {
   let text: string;
 
   try {
@@ -20,8 +25,8 @@ export async function extractRecipe(html: string): Promise<RecipeIngredient[]> {
       messages: [
         {
           role: 'user',
-          content: `Extract a list of ingredients from this recipe page.
-Return JSON array: [{ name, quantity, unit }]
+          content: `Extract recipe data from this page.
+Return JSON: { "serves": <number or null>, "ingredients": [{ "name", "quantity", "unit" }] }
 Return only JSON, no preamble.
 
 ${html}`,
@@ -36,18 +41,28 @@ ${html}`,
 
   let parsed: unknown;
   try {
-    // Strip markdown code fences if present
     const cleaned = text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
     parsed = JSON.parse(cleaned);
   } catch {
     throw new LLMParseError('Failed to parse JSON from recipe extraction response', text);
   }
 
-  if (!Array.isArray(parsed)) {
-    throw new LLMParseError('Expected JSON array from recipe extraction', text);
+  // Accept both the new object format and the legacy array format
+  let ingredientsRaw: unknown[];
+  let serves: number | null = null;
+
+  if (Array.isArray(parsed)) {
+    ingredientsRaw = parsed;
+  } else if (typeof parsed === 'object' && parsed !== null) {
+    const obj = parsed as Record<string, unknown>;
+    ingredientsRaw = Array.isArray(obj.ingredients) ? obj.ingredients : [];
+    const s = obj.serves;
+    if (typeof s === 'number' && Number.isFinite(s) && s > 0) serves = Math.round(s);
+  } else {
+    throw new LLMParseError('Expected JSON object or array from recipe extraction', text);
   }
 
-  return parsed.map((item: unknown, i: number) => {
+  const ingredients = ingredientsRaw.map((item: unknown, i: number) => {
     if (typeof item !== 'object' || item === null) {
       throw new LLMParseError(`Item at index ${i} is not an object`, text);
     }
@@ -61,4 +76,6 @@ ${html}`,
       unit: typeof obj.unit === 'string' ? obj.unit : String(obj.unit ?? ''),
     };
   });
+
+  return { ingredients, serves };
 }
