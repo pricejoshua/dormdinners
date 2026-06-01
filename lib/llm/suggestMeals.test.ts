@@ -24,10 +24,31 @@ describe('suggestMeals', () => {
     mockGenerateText.mockReset();
   });
 
-  it('returns parsed meal names', async () => {
-    mockGenerateText.mockResolvedValueOnce({ text: '["Fried Rice", "Lentil Soup"]' } as never);
+  it('returns parsed meal names with reasons', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify([
+        { name: 'Fried Rice', reason: 'Uses leftover rice from pantry' },
+        { name: 'Lentil Soup', reason: 'Reuses the lentils already planned' },
+      ]),
+    } as never);
     const result = await suggestMeals(baseInput);
-    expect(result).toEqual(['Fried Rice', 'Lentil Soup']);
+    expect(result).toEqual([
+      { name: 'Fried Rice', reason: 'Uses leftover rice from pantry' },
+      { name: 'Lentil Soup', reason: 'Reuses the lentils already planned' },
+    ]);
+  });
+
+  it('filters out items missing name or reason', async () => {
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify([
+        { name: 'Fried Rice', reason: 'Good use of pantry' },
+        { name: '', reason: 'Some reason' },
+        { name: 'Lentil Soup', reason: '' },
+        { reason: 'No name here' },
+      ]),
+    } as never);
+    const result = await suggestMeals(baseInput);
+    expect(result).toEqual([{ name: 'Fried Rice', reason: 'Good use of pantry' }]);
   });
 
   it('includes dietary restrictions as a hard constraint in the prompt', async () => {

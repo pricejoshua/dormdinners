@@ -59,11 +59,13 @@ Return only JSON, no preamble.`;
   try {
     const result = await generateText({
       model: getModel(),
-      maxTokens: 512,
+      maxTokens: 1024,
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     });
     text = result.text;
     console.log('[suggestMeals] raw LLM response:', text);
+    console.log('[suggestMeals] finishReason:', result.finishReason, '| usage:', result.usage);
   } catch (err) {
     throw new LLMRequestError('LLM request failed during meal suggestion', err);
   }
