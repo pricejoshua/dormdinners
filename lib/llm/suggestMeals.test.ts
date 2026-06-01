@@ -45,6 +45,7 @@ describe('suggestMeals', () => {
         { name: '', reason: 'Some reason' },
         { name: 'Lentil Soup', reason: '' },
         { reason: 'No name here' },
+        { name: 'Pasta' },  // missing reason key entirely
       ]),
     } as never);
     const result = await suggestMeals(baseInput);
@@ -52,7 +53,9 @@ describe('suggestMeals', () => {
   });
 
   it('includes dietary restrictions as a hard constraint in the prompt', async () => {
-    mockGenerateText.mockResolvedValueOnce({ text: '["Fried Rice"]' } as never);
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify([{ name: 'Fried Rice', reason: 'Quick weeknight meal' }]),
+    } as never);
     await suggestMeals({ ...baseInput, dietaryRestrictions: 'no nuts' });
     const call = mockGenerateText.mock.calls[0][0];
     const prompt = (call.messages as Array<{ content: string }>)[0].content;
@@ -60,7 +63,9 @@ describe('suggestMeals', () => {
   });
 
   it('omits dietary restrictions line when not provided', async () => {
-    mockGenerateText.mockResolvedValueOnce({ text: '["Fried Rice"]' } as never);
+    mockGenerateText.mockResolvedValueOnce({
+      text: JSON.stringify([{ name: 'Fried Rice', reason: 'Quick weeknight meal' }]),
+    } as never);
     await suggestMeals(baseInput);
     const call = mockGenerateText.mock.calls[0][0];
     const prompt = (call.messages as Array<{ content: string }>)[0].content;
