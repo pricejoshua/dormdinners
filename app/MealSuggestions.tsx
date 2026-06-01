@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 
+type Suggestion = { name: string; reason: string };
+
 export interface SuggestionSlot {
   key: string;
   index: number;   // 0-based, displayed as index+1
@@ -148,7 +150,7 @@ function SuggestionItem({ name, reason, emptySlots, onAccept, onDismiss }: Sugge
 
 export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggestionsProps) {
   const [showModal, setShowModal] = useState(false);
-  const [suggestions, setSuggestions] = useState<{ name: string; reason: string }[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
@@ -166,7 +168,7 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ weekOf, preferences: preferences.trim() || undefined }),
       });
-      const json = (await res.json()) as { suggestions?: { name: string; reason: string }[]; error?: string };
+      const json = (await res.json()) as { suggestions?: Suggestion[]; error?: string };
       if (!res.ok) {
         setError(json.error ?? 'Suggestion failed.');
       } else {
@@ -214,9 +216,9 @@ export default function MealSuggestions({ weekOf, slots, onAccept }: MealSuggest
 
       {suggestions.length > 0 && (
         <ul className="mt-3 border border-gray-200 rounded">
-          {suggestions.map((suggestion, i) => (
+          {suggestions.map((suggestion) => (
             <SuggestionItem
-              key={i}
+              key={suggestion.name}
               name={suggestion.name}
               reason={suggestion.reason}
               emptySlots={emptySlots}
