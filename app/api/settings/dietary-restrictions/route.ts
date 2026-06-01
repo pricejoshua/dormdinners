@@ -8,7 +8,7 @@ export async function GET(): Promise<NextResponse> {
     .from('app_settings')
     .select('value')
     .eq('key', 'dietary_restrictions')
-    .single();
+    .maybeSingle();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
