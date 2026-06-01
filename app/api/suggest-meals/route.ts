@@ -103,7 +103,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     dietaryRestrictions,
   };
 
-  let suggestions: string[];
+  let suggestions: { name: string; reason: string }[];
   try {
     suggestions = await suggestMeals(input);
   } catch (err) {
