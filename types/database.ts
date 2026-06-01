@@ -195,6 +195,16 @@ export type OptimizationSuggestionUpdate = Partial<OptimizationSuggestionInsert>
 export type ShoppingListItemUpdate = Partial<ShoppingListItemInsert>;
 export type ReferencePriceUpdate = Partial<ReferencePriceInsert>;
 
+export interface AppSettingsRow {
+  key: string;
+  value: string;
+}
+
+export interface WeekSettingsRow {
+  week_of: string;
+  dietary_restrictions: string;
+}
+
 // ---------------------------------------------------------------------------
 // Database interface — pass to createClient<Database>() for full type safety
 // ---------------------------------------------------------------------------
@@ -236,6 +246,16 @@ export interface Database {
         Row: ReferencePriceRow;
         Insert: ReferencePriceInsert;
         Update: ReferencePriceUpdate;
+      };
+      app_settings: {
+        Row: AppSettingsRow;
+        Insert: Partial<AppSettingsRow> & { key: string };
+        Update: Partial<AppSettingsRow>;
+      };
+      week_settings: {
+        Row: WeekSettingsRow;
+        Insert: Partial<WeekSettingsRow> & { week_of: string };
+        Update: Partial<WeekSettingsRow>;
       };
     };
     Views: Record<string, never>;
