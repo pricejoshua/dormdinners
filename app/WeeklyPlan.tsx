@@ -74,6 +74,8 @@ function InlineEdit({ value, onSave, placeholder, className = '', inputClassName
   );
 }
 
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const;
+
 // ─── Single meal slot ────────────────────────────────────────────────────────
 
 interface MealSlotProps {
@@ -275,7 +277,7 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
   }
 
   // ── URL extraction result ─────────────────────────────────────────────────
-  function handleUrlSuccessWithMode(newIngredients: MealIngredientRow[], replaceMode: boolean) {
+  function handleUrlSuccessWithMode(newIngredients: MealIngredientRow[], replaceMode: boolean, extractedServes: number | null) {
     let next: MealIngredientRow[];
     if (replaceMode) {
       next = newIngredients;
@@ -285,6 +287,10 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
     }
     setIngredients(next);
     report({ ingredientCount: next.length });
+    if (extractedServes !== null && (replaceMode || serves === null)) {
+      setServes(extractedServes);
+      setServesInput(String(extractedServes));
+    }
   }
 
   // ── Derived scaling values (recomputed each render) ────────────────────────
@@ -304,7 +310,7 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
-        <span className="text-xs text-gray-400 w-5 shrink-0 text-right">{index + 1}.</span>
+        <span className="text-xs text-gray-400 w-7 shrink-0">{DAY_NAMES[index] ?? index + 1}</span>
         <span className="flex-1 text-sm font-medium truncate">
           {title || <span className="text-gray-400 font-normal">Untitled meal</span>}
         </span>
@@ -426,7 +432,7 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
                       <button
                         type="button"
                         onClick={() => removeIngredient(ing.id)}
-                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover/row:opacity-100 transition-opacity text-xs"
+                        className="text-gray-300 hover:text-red-500 opacity-0 group-hover/row:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity text-xs"
                         title="Remove"
                         aria-label="Remove ingredient"
                       >
@@ -533,7 +539,7 @@ interface UrlModalWithModeProps {
   ensureMealId: () => Promise<string | null>;
   existingCount: number;
   onClose: () => void;
-  onSuccess: (ingredients: MealIngredientRow[], replace: boolean) => void;
+  onSuccess: (ingredients: MealIngredientRow[], replace: boolean, serves: number | null) => void;
 }
 
 function UrlModalWithMode({ ensureMealId, existingCount, onClose, onSuccess }: UrlModalWithModeProps) {
@@ -558,11 +564,11 @@ function UrlModalWithMode({ ensureMealId, existingCount, onClose, onSuccess }: U
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim(), mode }),
       });
-      const json = await res.json() as { ingredients?: MealIngredientRow[]; error?: string };
+      const json = await res.json() as { ingredients?: MealIngredientRow[]; serves?: number | null; error?: string };
       if (!res.ok) {
         setError(json.error ?? 'Extraction failed. Please add ingredients manually.');
       } else {
-        onSuccess(json.ingredients ?? [], mode === 'replace');
+        onSuccess(json.ingredients ?? [], mode === 'replace', json.serves ?? null);
         onClose();
       }
     } catch {

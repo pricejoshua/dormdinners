@@ -102,7 +102,7 @@ function SuggestionItem({ name, emptySlots, onAccept, onDismiss }: SuggestionIte
         >
           {emptySlots.map((s) => (
             <option key={s.key} value={s.key}>
-              Slot {s.index + 1}
+              {(['Mon', 'Tue', 'Wed', 'Thu', 'Fri'] as const)[s.index] ?? `Slot ${s.index + 1}`}
             </option>
           ))}
         </select>
