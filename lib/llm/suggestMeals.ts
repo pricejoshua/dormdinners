@@ -84,12 +84,13 @@ Return only JSON.`;
   }
 
   return parsed.filter(
-    (item): item is { name: string; reason: string } =>
-      typeof item === 'object' &&
-      item !== null &&
-      typeof (item as Record<string, unknown>).name === 'string' &&
-      (item as Record<string, unknown>).name !== '' &&
-      typeof (item as Record<string, unknown>).reason === 'string' &&
-      (item as Record<string, unknown>).reason !== '',
+    (item): item is { name: string; reason: string } => {
+      if (typeof item !== 'object' || item === null) return false;
+      const obj = item as Record<string, unknown>;
+      return (
+        typeof obj.name === 'string' && obj.name.trim() !== '' &&
+        typeof obj.reason === 'string' && obj.reason.trim() !== ''
+      );
+    },
   );
 }
