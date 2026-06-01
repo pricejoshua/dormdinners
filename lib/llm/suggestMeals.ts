@@ -51,7 +51,7 @@ Suggest 6 meal ideas that would work well alongside the existing meals. Favour m
 - Draw on pantry items where possible
 - Are practical for a group cooking setting
 
-Return a JSON array of objects — no preamble, no markdown fences.
+Return a JSON array of objects — no preamble, no markdown fences. Each meal name must be unique.
 Each object must have exactly two fields: "name" (the meal title) and "reason" (one sentence explaining why it fits).
 Example: [{"name":"Pasta Primavera","reason":"Uses the pasta and cherry tomatoes already in your pantry"},{"name":"Fried Rice","reason":"Reuses the rice from Monday's planned meal"}]
 Return only JSON.`;

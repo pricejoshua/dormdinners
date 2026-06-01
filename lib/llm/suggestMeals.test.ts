@@ -81,4 +81,9 @@ describe('suggestMeals', () => {
     mockGenerateText.mockResolvedValueOnce({ text: 'not json' } as never);
     await expect(suggestMeals(baseInput)).rejects.toBeInstanceOf(LLMParseError);
   });
+
+  it('throws LLMParseError when response is valid JSON but not an array', async () => {
+    mockGenerateText.mockResolvedValueOnce({ text: '{"name":"Pasta","reason":"good"}' } as never);
+    await expect(suggestMeals(baseInput)).rejects.toBeInstanceOf(LLMParseError);
+  });
 });
