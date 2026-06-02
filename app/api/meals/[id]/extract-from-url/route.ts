@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseServerClient } from '@/lib/supabase/server';
 import { extractRecipe } from '@/lib/llm/extractRecipe';
-import { clipRecipe } from '@/lib/recipe/clipRecipe';
 import type { MealIngredientInsert } from '@/types/database';
 
 interface RouteContext {
@@ -118,6 +117,9 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
   // Primary: RecipeClipper (fast, no LLM). It reads JSON-LD and visible markup,
   // so it gets the raw HTML — JSDOM never executes the embedded scripts. Falls
   // back to the LLM only when it can't find a recipe on the page.
+  // Dynamic import keeps jsdom out of the webpack bundle (it uses dynamic requires
+  // that webpack cannot handle statically).
+  const { clipRecipe } = await import('@/lib/recipe/clipRecipe');
   const clipped = await clipRecipe(html, raw.url.trim());
   let ingredients = clipped.ingredients;
   let extractedServes: number | null = clipped.serves;
