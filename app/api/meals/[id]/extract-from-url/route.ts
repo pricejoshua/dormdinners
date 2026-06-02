@@ -73,7 +73,7 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     if (!res.ok) {
       const blocked = res.status === 403 || res.status === 402 || res.status === 401;
       const error = blocked
-        ? "That site requires a login or subscription. Try a different site or add ingredients manually."
+        ? "That site blocks automated access. Try BBC Good Food, Bon Appétit, or a food blog instead."
         : `Failed to fetch URL: HTTP ${res.status}`;
       return NextResponse.json({ error }, { status: 422 });
     }
