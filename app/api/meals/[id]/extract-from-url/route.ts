@@ -53,14 +53,21 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
   // Fetch the recipe URL server-side
   let html: string;
   try {
-    const res = await fetch(raw.url.trim(), {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (compatible; DormDinners/1.0; +https://dormdinners.vercel.app)',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-      // No signal/timeout in standard fetch; rely on Vercel function timeout
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    let res: Response;
+    try {
+      res = await fetch(raw.url.trim(), {
+        signal: controller.signal,
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (compatible; DormDinners/1.0; +https://dormdinners.vercel.app)',
+          Accept: 'text/html,application/xhtml+xml',
+        },
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!res.ok) {
       return NextResponse.json(
@@ -101,11 +108,11 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
       }, new Uint8Array(0)),
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json(
-      { error: `Failed to fetch URL: ${message}` },
-      { status: 422 },
-    );
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
+    const message = isTimeout
+      ? 'The recipe site took too long to respond. Try again or add ingredients manually.'
+      : `Failed to fetch URL: ${err instanceof Error ? err.message : String(err)}`;
+    return NextResponse.json({ error: message }, { status: 422 });
   }
 
   // Primary: RecipeClipper (fast, no LLM). It reads JSON-LD and visible markup,

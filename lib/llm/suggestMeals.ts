@@ -60,7 +60,7 @@ Return only JSON.`;
   try {
     const result = await generateText({
       model: getModel(),
-      maxTokens: 2048,
+      maxTokens: 4096,
       temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     });

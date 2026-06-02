@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import RefreshOnFocus from '@/app/RefreshOnFocus';
 
 export const metadata: Metadata = {
   title: "Dorm Dinners",
@@ -43,6 +44,7 @@ export default function RootLayout({
             </div>
           </nav>
         </header>
+        <RefreshOnFocus />
         <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
       </body>
     </html>

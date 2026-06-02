@@ -5,6 +5,7 @@ const nextConfig = {
   // so it's required at runtime in the Node serverless function instead.
   experimental: {
     serverComponentsExternalPackages: ['jsdom'],
+    staleTimes: { dynamic: 0 },
   },
 };
 
