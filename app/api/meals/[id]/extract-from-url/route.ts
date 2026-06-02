@@ -60,8 +60,10 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
         signal: controller.signal,
         headers: {
           'User-Agent':
-            'Mozilla/5.0 (compatible; DormDinners/1.0; +https://dormdinners.vercel.app)',
-          Accept: 'text/html,application/xhtml+xml',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Accept-Encoding': 'gzip, deflate, br',
         },
       });
     } finally {
@@ -69,10 +71,10 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     }
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: `Failed to fetch URL: HTTP ${res.status}` },
-        { status: 422 },
-      );
+      const error = res.status === 403
+        ? "That site doesn't allow recipe importing. Try a different site or add ingredients manually."
+        : `Failed to fetch URL: HTTP ${res.status}`;
+      return NextResponse.json({ error }, { status: 422 });
     }
 
     // Read at most MAX_BYTES
