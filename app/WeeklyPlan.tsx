@@ -552,19 +552,32 @@ function UrlModalWithMode({ ensureMealId, existingCount, onClose, onSuccess }: U
     e.preventDefault();
     setError(null);
     setLoading(true);
+    let mealId: string | null = null;
     try {
-      // Create the meal only now that the user has committed to extracting.
-      const mealId = await ensureMealId();
-      if (!mealId) {
-        setError('Could not create the meal. Please try again.');
-        return;
-      }
+      mealId = await ensureMealId();
+    } catch {
+      setError('Network error creating meal. Please check your connection and try again.');
+      setLoading(false);
+      return;
+    }
+    if (!mealId) {
+      setError('Could not create the meal. Please try again.');
+      setLoading(false);
+      return;
+    }
+    try {
       const res = await fetch(`/api/meals/${mealId}/extract-from-url`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim(), mode }),
       });
-      const json = await res.json() as { ingredients?: MealIngredientRow[]; serves?: number | null; error?: string };
+      let json: { ingredients?: MealIngredientRow[]; serves?: number | null; error?: string };
+      try {
+        json = await res.json() as typeof json;
+      } catch {
+        setError(`Server error (HTTP ${res.status}). Please try again.`);
+        return;
+      }
       if (!res.ok) {
         setError(json.error ?? 'Extraction failed. Please add ingredients manually.');
       } else {
@@ -572,7 +585,7 @@ function UrlModalWithMode({ ensureMealId, existingCount, onClose, onSuccess }: U
         onClose();
       }
     } catch {
-      setError('Network error. Please check your connection and try again.');
+      setError('Network error fetching recipe. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }
