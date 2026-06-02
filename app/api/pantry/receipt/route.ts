@@ -14,6 +14,7 @@ interface ReceiptItem {
 }
 
 interface ReceiptResponse {
+  error: string | null;
   store: string | null;
   items: ReceiptItem[];
 }
@@ -49,20 +50,25 @@ export async function POST(request: NextRequest) {
             {
               type: 'text',
               text: `You are parsing a grocery receipt image.
-Extract all purchased items and return ONLY a JSON object (no preamble, no markdown fences):
+If the image is not a grocery receipt, or is too blurry/unclear to read reliably, return:
+{ "error": "brief reason", "store": null, "items": [] }
+
+Otherwise return ONLY a JSON object (no preamble, no markdown fences):
 {
+  "error": null,
   "store": "store name from receipt header, or null if not found",
   "items": [
     { "name": "item name", "quantity_amount": 2, "quantity_unit": "kg", "price": 4.99 }
   ]
 }
-quantity_amount and quantity_unit may be null if not shown.
-price may be null if not clearly a per-item price.
-try to guess item names based on context clues. If you are not confident, don't touch the item names.
-you can also make guesses on quantities, based on the item name
-combine entries that are the same, and use a quantity and the 'ea' or 'pack' unit to describe them.
-if an entry does not seem to be a food item (e.g. a coupon entry), do not include it.
-Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
+Rules:
+- Only include items that appear on the receipt. Do not invent items.
+- Expand abbreviated item names into plain English (e.g. "GV BLA BEANS" → "Black Beans", "ORNG JCE 64OZ" → "Orange Juice"). If the abbreviation is ambiguous, use your best guess but keep it conservative.
+- quantity_amount and quantity_unit may be null if not shown on the receipt.
+- price may be null if not clearly a per-item price.
+- Combine duplicate line items using quantity and the "ea" or "pack" unit.
+- Omit non-food entries (coupons, discounts, tax lines, subtotals).
+- Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
             },
           ],
         },
@@ -92,6 +98,11 @@ Normalize unit strings: use "kg", "g", "L", "mL", "ea", "pack", "lb", "oz".`,
   }
 
   const receipt = parsed as ReceiptResponse;
+
+  if (typeof receipt.error === 'string' && receipt.error) {
+    return NextResponse.json({ error: receipt.error }, { status: 422 });
+  }
+
   const store = typeof receipt.store === 'string' ? receipt.store : null;
   const items: ReceiptItem[] = receipt.items.map((item: unknown) => {
     const obj = item as Record<string, unknown>;
