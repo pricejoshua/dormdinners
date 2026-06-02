@@ -71,8 +71,9 @@ export async function POST(request: Request, context: RouteContext): Promise<Nex
     }
 
     if (!res.ok) {
-      const error = res.status === 403
-        ? "That site doesn't allow recipe importing. Try a different site or add ingredients manually."
+      const blocked = res.status === 403 || res.status === 402 || res.status === 401;
+      const error = blocked
+        ? "That site requires a login or subscription. Try a different site or add ingredients manually."
         : `Failed to fetch URL: HTTP ${res.status}`;
       return NextResponse.json({ error }, { status: 422 });
     }
