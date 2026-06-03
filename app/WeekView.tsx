@@ -227,6 +227,7 @@ export default function WeekView({ weekOf, meals, suggestions, referencePrices }
             onSummaryChange={handleSummaryChange}
             pendingTitle={pendingTitles.get(slot.key)}
             onPendingTitleConsumed={() => handlePendingTitleConsumed(slot.key)}
+            dietaryRestrictions={effectiveRestrictions}
           />
         ))}
       </ul>

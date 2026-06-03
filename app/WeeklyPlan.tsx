@@ -5,6 +5,7 @@ import type { MealIngredientRow, MealRow } from '@/types/database';
 import { effectiveFactor, scaleQuantity } from '@/lib/recipe/scale';
 import { sumWeight } from '@/lib/recipe/weight';
 import { bestPriceForIngredient, type PriceRow } from '@/lib/prices/lookup';
+import VerifyDietaryModal from '@/app/VerifyDietaryModal';
 
 export interface MealWithIngredients extends MealRow {
   ingredients: MealIngredientRow[];
@@ -88,9 +89,10 @@ interface MealSlotProps {
   pendingTitle?: string;
   /** Called synchronously once pendingTitle has been picked up, before the async save completes. Used to prevent re-firing. */
   onPendingTitleConsumed?: () => void;
+  dietaryRestrictions: string;
 }
 
-function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryChange, pendingTitle, onPendingTitleConsumed }: MealSlotProps) {
+function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryChange, pendingTitle, onPendingTitleConsumed, dietaryRestrictions }: MealSlotProps) {
   const [mealId, setMealId] = useState<string | null>(slot.id);
   const [title, setTitle] = useState(slot.title);
   const [ingredients, setIngredients] = useState<MealIngredientRow[]>(slot.ingredients);
@@ -102,6 +104,7 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
   );
   const [expanded, setExpanded] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [addingIngredient, setAddingIngredient] = useState(false);
   const [newName, setNewName] = useState('');
   const [newQty, setNewQty] = useState('');
@@ -514,6 +517,18 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
               >
                 Paste recipe URL
               </button>
+              {mealId !== null && dietaryRestrictions.trim() !== '' && (
+                <>
+                  <span className="text-gray-300 text-xs">·</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowVerifyModal(true)}
+                    className="text-xs text-gray-500 hover:text-gray-900 underline underline-offset-2"
+                  >
+                    Verify dietary
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -525,6 +540,13 @@ function MealSlot({ slot, index, weekOf, headcount, referencePrices, onSummaryCh
           existingCount={ingredients.length}
           onClose={() => setShowUrlModal(false)}
           onSuccess={handleUrlSuccessWithMode}
+        />
+      )}
+      {showVerifyModal && mealId !== null && (
+        <VerifyDietaryModal
+          mealId={mealId}
+          mealTitle={title}
+          onClose={() => setShowVerifyModal(false)}
         />
       )}
     </li>
