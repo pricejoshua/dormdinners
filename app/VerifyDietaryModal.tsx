@@ -14,7 +14,8 @@ export default function VerifyDietaryModal({ mealId, mealTitle, onClose }: Verif
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/meals/${mealId}/verify-dietary`)
+    const controller = new AbortController();
+    fetch(`/api/meals/${mealId}/verify-dietary`, { signal: controller.signal })
       .then(async (res) => {
         const json = (await res.json()) as { ok?: boolean; adaptations?: string[]; error?: string };
         if (!res.ok) {
@@ -23,8 +24,13 @@ export default function VerifyDietaryModal({ mealId, mealTitle, onClose }: Verif
           setResult({ ok: json.ok ?? true, adaptations: json.adaptations ?? [] });
         }
       })
-      .catch(() => setError('Network error. Please try again.'))
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          setError('Network error. Please try again.');
+        }
+      })
       .finally(() => setLoading(false));
+    return () => controller.abort();
   }, [mealId]);
 
   return (
@@ -53,8 +59,8 @@ export default function VerifyDietaryModal({ mealId, mealTitle, onClose }: Verif
             <div>
               <p className="text-sm text-gray-700 mb-2">Adaptations needed:</p>
               <ul className="space-y-1 list-disc list-inside">
-                {result.adaptations.map((a, i) => (
-                  <li key={i} className="text-sm text-gray-600">{a}</li>
+                {result.adaptations.map((a) => (
+                  <li key={a} className="text-sm text-gray-600">{a}</li>
                 ))}
               </ul>
             </div>
